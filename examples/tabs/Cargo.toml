@@ -7,6 +7,6 @@ edition = "2024"
 env_logger = { version = "0.11.8" }
 nanoid = "0.4.0"
 nestix = { git = "https://github.com/wirelesseye/nestix.git" }
-nestix-native = { path = "../../../nestix-native/nestix-native", default-features = false, features = ["appkit"] }
+nestix-native = { git = "https://github.com/wirelesseye/nestix-native.git", default-features = false }
 nestix-native-winui = { path = "../.." }
 rand = "0.9"
