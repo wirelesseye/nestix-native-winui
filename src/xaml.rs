@@ -11,7 +11,9 @@ use crate::{
         Windows::Graphics::SizeInt32,
     },
     xaml_app::is_xaml_running,
-    xaml_events::{RegisteredClickCallback, RegisteredScaleFactorCallback},
+    xaml_events::{
+        RegisteredClickCallback, RegisteredResizeCallback, RegisteredScaleFactorCallback,
+    },
 };
 
 const E_NOTIMPL: HRESULT = HRESULT(0x80004001u32 as i32);
@@ -38,6 +40,8 @@ pub(crate) struct WindowElement {
     realized: Option<Window>,
     scale_factor_callback: Rc<RefCell<Option<RegisteredScaleFactorCallback>>>,
     scale_factor_handler: Rc<RefCell<Option<ScaleFactorHandlerState>>>,
+    resize_callback: Rc<RefCell<Option<RegisteredResizeCallback>>>,
+    resize_handler: Rc<RefCell<Option<ResizeHandlerState>>>,
 }
 
 #[derive(Debug, Clone)]
@@ -76,6 +80,11 @@ pub(crate) struct ScaleFactorHandlerState {
     _revoker: EventRevoker,
 }
 
+pub(crate) struct ResizeHandlerState {
+    callback_id: u64,
+    _revoker: EventRevoker,
+}
+
 impl std::fmt::Debug for ClickHandlerState {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter
@@ -89,6 +98,15 @@ impl std::fmt::Debug for ScaleFactorHandlerState {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter
             .debug_struct("ScaleFactorHandlerState")
+            .field("callback_id", &self.callback_id)
+            .finish_non_exhaustive()
+    }
+}
+
+impl std::fmt::Debug for ResizeHandlerState {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("ResizeHandlerState")
             .field("callback_id", &self.callback_id)
             .finish_non_exhaustive()
     }
@@ -114,6 +132,8 @@ impl XamlElement {
             realized: None,
             scale_factor_callback: Rc::new(RefCell::new(None)),
             scale_factor_handler: Rc::new(RefCell::new(None)),
+            resize_callback: Rc::new(RefCell::new(None)),
+            resize_handler: Rc::new(RefCell::new(None)),
         })))
     }
 
@@ -280,6 +300,26 @@ impl XamlElement {
         Ok(())
     }
 
+    pub fn set_resized(
+        &self,
+        handler: Option<nestix::Shared<dyn Fn(nestix_native_core::dpi::Size)>>,
+    ) -> Result<()> {
+        let mut kind = self.0.kind.borrow_mut();
+        let XamlKind::Window(element) = &mut *kind else {
+            return Ok(());
+        };
+
+        element.detach_resize_handler();
+        element
+            .resize_callback
+            .replace(handler.map(RegisteredResizeCallback::register));
+
+        if let Some(window) = element.realized.clone() {
+            element.attach_resize_handler(&window)?;
+        }
+        Ok(())
+    }
+
     pub fn set_flex_direction(&self, direction: nestix_native_core::FlexDirection) -> Result<()> {
         let mut kind = self.0.kind.borrow_mut();
         let XamlKind::StackPanel(element) = &mut *kind else {
@@ -349,6 +389,7 @@ impl XamlElement {
                 if let Some(window) = element.realized.clone() {
                     window.SetContent(&child)?;
                     element.attach_scale_factor_handler(&window)?;
+                    element.attach_resize_handler(&window)?;
                 }
             }
             XamlKind::StackPanel(element) => {
@@ -397,6 +438,7 @@ impl WindowElement {
         self.set_window_size()?;
         if let Some(window) = self.realized.clone() {
             self.attach_scale_factor_handler(&window)?;
+            self.attach_resize_handler(&window)?;
         }
         Ok(())
     }
@@ -452,6 +494,47 @@ impl WindowElement {
     fn detach_scale_factor_handler(&mut self) {
         self.scale_factor_handler.take();
         self.scale_factor_callback.take();
+    }
+
+    fn attach_resize_handler(&mut self, window: &Window) -> Result<()> {
+        self.resize_handler.take();
+        let Some(callback_id) = self
+            .resize_callback
+            .borrow()
+            .as_ref()
+            .map(RegisteredResizeCallback::id)
+        else {
+            return Ok(());
+        };
+
+        let content = match window.Content() {
+            Ok(content) => content.cast::<FrameworkElement>()?,
+            Err(_) => return Ok(()),
+        };
+        let app_window = window.AppWindow()?;
+        let revoker = content.SizeChanged(move |_, _| {
+            if let Ok(size) = app_window.ClientSize() {
+                RegisteredResizeCallback::invoke(
+                    callback_id,
+                    nestix_native_core::dpi::Size::Physical(
+                        nestix_native_core::dpi::PhysicalSize::new(
+                            size.Width as u32,
+                            size.Height as u32,
+                        ),
+                    ),
+                );
+            }
+        })?;
+        self.resize_handler.replace(Some(ResizeHandlerState {
+            callback_id,
+            _revoker: revoker,
+        }));
+        Ok(())
+    }
+
+    fn detach_resize_handler(&mut self) {
+        self.resize_handler.take();
+        self.resize_callback.take();
     }
 }
 

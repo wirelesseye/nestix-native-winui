@@ -54,6 +54,13 @@ pub fn Window(props: &WindowProps, element: &Element) -> Element {
 
     scoped_effect!(
         element,
+        [window, props.on_resize] || {
+            let _ = window.set_resized(on_resize.get());
+        }
+    );
+
+    scoped_effect!(
+        element,
         [window, scale_factor, props.width, props.height] || {
             let logical_size = LogicalSize::new(width.get(), height.get());
             let physical_size: PhysicalSize<i32> = logical_size.to_physical(scale_factor.get());
