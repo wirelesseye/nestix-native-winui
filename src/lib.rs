@@ -5,7 +5,10 @@ pub mod flex_view;
 pub mod root;
 pub mod text;
 pub mod window;
+mod window_native;
 mod xaml;
+mod xaml_app;
+mod xaml_events;
 
 #[allow(
     non_snake_case,

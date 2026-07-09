@@ -3,7 +3,7 @@ use std::{cell::OnceCell, rc::Rc};
 use nestix::{Element, closure, component, components::ContextProvider, layout};
 use nestix_native_core::{RootProps, StyleScope};
 
-use crate::{contexts::AppContext, xaml::XamlApp};
+use crate::{contexts::AppContext, xaml_app::XamlApp};
 
 thread_local! {
     static APP: OnceCell<Rc<XamlApp>> = const { OnceCell::new() };
@@ -26,6 +26,12 @@ pub fn Root(props: &RootProps, element: &Element) -> Element {
     element.after_mount(closure!(
         [app] || {
             app.run();
+        }
+    ));
+
+    element.on_unmount(closure!(
+        [app] || {
+            app.quit();
         }
     ));
 

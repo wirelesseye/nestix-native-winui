@@ -31,6 +31,7 @@ pub fn Window(props: &WindowProps, element: &Element) -> Element {
     let tree_context = Rc::new(TreeContext::new());
 
     let window = XamlElement::window(props.title.get()).expect("failed to create WinUI window");
+    let window_registration = app_context.app.register_window(window.clone());
     window
         .set_scale_factor_changed(Some(callback!([scale_factor] |value: f64| {
             scale_factor.set(value);
@@ -62,8 +63,8 @@ pub fn Window(props: &WindowProps, element: &Element) -> Element {
     );
 
     element.on_unmount(closure!(
-        [app_context] || {
-            app_context.app.quit();
+        [window_registration] || {
+            window_registration.unregister();
         }
     ));
 

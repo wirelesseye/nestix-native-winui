@@ -2,11 +2,11 @@ use std::rc::Rc;
 
 use nestix::Shared;
 
-use crate::xaml::XamlElement;
+use crate::{xaml::XamlElement, xaml_app::XamlApp};
 
 #[derive(Clone)]
 pub(crate) struct AppContext {
-    pub app: Rc<crate::xaml::XamlApp>,
+    pub app: Rc<XamlApp>,
 }
 
 #[derive(Clone)]
