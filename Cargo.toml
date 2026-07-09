@@ -9,7 +9,7 @@ members = ["examples/*"]
 
 [dependencies]
 nestix = { git = "https://github.com/wirelesseye/nestix.git" }
-nestix-native-core = { path = "../nestix-native/nestix-native-core", features = ["taffy"] }
+nestix-native-core = { git = "https://github.com/wirelesseye/nestix-native.git", features = ["taffy"] }
 windows = { git = "https://github.com/microsoft/windows-rs.git", rev = "c166957", features = [
     "Win32_Foundation",
     "Win32_System_Com",

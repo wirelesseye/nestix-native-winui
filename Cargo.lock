@@ -73,7 +73,7 @@ version = "0.1.0"
 dependencies = [
  "env_logger",
  "nestix",
- "nestix-native",
+ "nestix-native 0.1.0 (git+https://github.com/wirelesseye/nestix-native.git)",
  "nestix-native-winui",
 ]
 
@@ -326,7 +326,16 @@ version = "0.1.0"
 dependencies = [
  "nestix",
  "nestix-native-appkit",
- "nestix-native-core",
+ "nestix-native-core 0.1.0",
+]
+
+[[package]]
+name = "nestix-native"
+version = "0.1.0"
+source = "git+https://github.com/wirelesseye/nestix-native.git#3a3c4671f27d3138b523984b8741a7b2ac9c5d9e"
+dependencies = [
+ "nestix",
+ "nestix-native-core 0.1.0 (git+https://github.com/wirelesseye/nestix-native.git)",
 ]
 
 [[package]]
@@ -335,7 +344,7 @@ version = "0.1.0"
 dependencies = [
  "nanoid",
  "nestix",
- "nestix-native-core",
+ "nestix-native-core 0.1.0",
  "objc2",
  "objc2-app-kit",
  "objc2-foundation",
@@ -348,7 +357,18 @@ version = "0.1.0"
 dependencies = [
  "dpi",
  "nestix",
- "nestix-native-macros",
+ "nestix-native-macros 0.1.0",
+ "taffy",
+]
+
+[[package]]
+name = "nestix-native-core"
+version = "0.1.0"
+source = "git+https://github.com/wirelesseye/nestix-native.git#3a3c4671f27d3138b523984b8741a7b2ac9c5d9e"
+dependencies = [
+ "dpi",
+ "nestix",
+ "nestix-native-macros 0.1.0 (git+https://github.com/wirelesseye/nestix-native.git)",
  "taffy",
 ]
 
@@ -363,11 +383,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "nestix-native-macros"
+version = "0.1.0"
+source = "git+https://github.com/wirelesseye/nestix-native.git#3a3c4671f27d3138b523984b8741a7b2ac9c5d9e"
+dependencies = [
+ "proc-macro-crate",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "nestix-native-winui"
 version = "0.1.0"
 dependencies = [
  "nestix",
- "nestix-native-core",
+ "nestix-native-core 0.1.0 (git+https://github.com/wirelesseye/nestix-native.git)",
  "windows",
  "windows-bindgen",
  "windows-collections",
@@ -744,7 +775,7 @@ dependencies = [
  "env_logger",
  "nanoid",
  "nestix",
- "nestix-native",
+ "nestix-native 0.1.0",
  "nestix-native-winui",
  "rand 0.9.4",
 ]

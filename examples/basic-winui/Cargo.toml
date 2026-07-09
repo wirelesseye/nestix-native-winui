@@ -6,5 +6,5 @@ edition = "2024"
 [dependencies]
 env_logger = { version = "0.11.8" }
 nestix = { git = "https://github.com/wirelesseye/nestix.git" }
-nestix-native = { path = "../../../nestix-native/nestix-native", default-features = false }
+nestix-native = { git = "https://github.com/wirelesseye/nestix-native.git", default-features = false }
 nestix-native-winui = { path = "../.." }
