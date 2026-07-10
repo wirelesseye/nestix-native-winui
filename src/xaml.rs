@@ -26,6 +26,7 @@ use crate::{
 };
 
 const E_NOTIMPL: HRESULT = HRESULT(0x80004001u32 as i32);
+const BUTTON_INTRINSIC_SLACK: f32 = 2.0;
 
 pub(crate) struct XamlNode {
     kind: RefCell<XamlKind>,
@@ -665,9 +666,15 @@ impl XamlElement {
                 realized.label.Measure(available)?;
                 let text_size = realized.label.DesiredSize()?;
                 Size {
-                    Width: (text_size.Width + padding.Left as f32 + padding.Right as f32)
+                    Width: (text_size.Width
+                        + padding.Left as f32
+                        + padding.Right as f32
+                        + BUTTON_INTRINSIC_SLACK)
                         .max(realized.control.MinWidth()? as f32),
-                    Height: (text_size.Height + padding.Top as f32 + padding.Bottom as f32)
+                    Height: (text_size.Height
+                        + padding.Top as f32
+                        + padding.Bottom as f32
+                        + BUTTON_INTRINSIC_SLACK)
                         .max(realized.control.MinHeight()? as f32),
                 }
             }
