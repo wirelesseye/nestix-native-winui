@@ -52,6 +52,19 @@ pub fn FlexView(props: &FlexViewProps, element: &Element) -> Element {
 
     scoped_effect!(
         element,
+        [canvas, style_props, props.bg_color] || {
+            let style_props = style_props.get();
+            let bg_color = bg_color.get().or_else(|| {
+                style_props
+                    .as_ref()
+                    .and_then(|style_props| style_props.bg_color)
+            });
+            let _ = canvas.set_background_color(bg_color);
+        }
+    );
+
+    scoped_effect!(
+        element,
         [tree_context, style_props, props.view.grow] || {
             let style_props = style_props.get();
             tree_context.update_style(node_id, |prev| Style {

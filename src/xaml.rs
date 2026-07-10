@@ -11,6 +11,7 @@ use crate::{
         },
         Windows::Foundation::Size,
         Windows::Graphics::SizeInt32,
+        Windows::UI::Color as UiColor,
     },
     xaml_app::is_xaml_running,
     xaml_events::{
@@ -49,6 +50,7 @@ pub(crate) struct WindowElement {
 
 #[derive(Debug, Clone)]
 pub(crate) struct CanvasElement {
+    background_color: Option<nestix_native_core::Color>,
     realized: Option<Canvas>,
 }
 
@@ -160,6 +162,7 @@ impl XamlElement {
 
     pub fn canvas() -> Result<Self> {
         Ok(Self::new(XamlKind::Canvas(CanvasElement {
+            background_color: None,
             realized: None,
         })))
     }
@@ -348,6 +351,31 @@ impl XamlElement {
         Ok(())
     }
 
+    pub fn set_background_color(&self, color: Option<nestix_native_core::Color>) -> Result<()> {
+        let mut kind = self.0.kind.borrow_mut();
+        let XamlKind::Canvas(element) = &mut *kind else {
+            return Ok(());
+        };
+
+        element.background_color = color;
+        if let Some(canvas) = &element.realized {
+            set_canvas_background(canvas, color)?;
+        }
+        Ok(())
+    }
+
+    fn apply_background_color(&self) -> Result<()> {
+        let kind = self.0.kind.borrow();
+        let XamlKind::Canvas(element) = &*kind else {
+            return Ok(());
+        };
+
+        if let Some(canvas) = &element.realized {
+            set_canvas_background(canvas, element.background_color)?;
+        }
+        Ok(())
+    }
+
     pub fn set_layout(&self, x: f64, y: f64, width: f64, height: f64) -> Result<()> {
         self.0.layout.replace(Some(XamlLayout {
             x,
@@ -454,6 +482,7 @@ impl XamlElement {
         }
         self.measure_intrinsic()?;
         self.apply_layout()?;
+        self.apply_background_color()?;
         self.notify_scale_factor_changed()?;
         Ok(())
     }
@@ -705,9 +734,27 @@ impl TextBlockElement {
     }
 }
 
+fn set_canvas_background(canvas: &Canvas, color: Option<nestix_native_core::Color>) -> Result<()> {
+    let Some(color) = color else {
+        return canvas.SetBackground(None);
+    };
+
+    let rgb = color.into_rgb();
+    let brush =
+        crate::bindings::Microsoft::UI::Xaml::Media::SolidColorBrush::CreateInstanceWithColor(
+            UiColor {
+                A: rgb.alpha,
+                R: rgb.red,
+                G: rgb.green,
+                B: rgb.blue,
+            },
+        )?;
+    canvas.SetBackground(&brush)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::XamlElement;
+    use super::{XamlElement, XamlKind};
 
     #[test]
     fn child_operations_preserve_requested_order_before_realization() {
@@ -761,5 +808,22 @@ mod tests {
         let layout = element.0.layout.borrow().unwrap();
         assert_eq!((layout.x, layout.y), (1.0, 2.0));
         assert_eq!((layout.width, layout.height), (30.0, 40.0));
+    }
+
+    #[test]
+    fn background_color_is_cached_before_realization() {
+        let element = XamlElement::canvas().unwrap();
+        element
+            .set_background_color(Some(nestix_native_core::Color::RED))
+            .unwrap();
+
+        let kind = element.0.kind.borrow();
+        let XamlKind::Canvas(canvas) = &*kind else {
+            panic!("expected canvas");
+        };
+        assert_eq!(
+            canvas.background_color,
+            Some(nestix_native_core::Color::RED)
+        );
     }
 }

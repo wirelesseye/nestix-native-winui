@@ -72,6 +72,8 @@ fn main() {
         "Microsoft.UI.Xaml.Controls.Primitives.ButtonBase".to_string(),
         "Microsoft.UI.Xaml.Controls.TextBlock".to_string(),
         "Microsoft.UI.Xaml.Controls.UIElementCollection".to_string(),
+        "Microsoft.UI.Xaml.Media.Brush".to_string(),
+        "Microsoft.UI.Xaml.Media.SolidColorBrush".to_string(),
         "Microsoft.UI.Xaml.UIElement".to_string(),
         "Microsoft.UI.Xaml.FrameworkElement".to_string(),
         "Microsoft.UI.Xaml.SizeChangedEventArgs".to_string(),
@@ -86,6 +88,7 @@ fn main() {
         "Windows.Foundation.PropertyValue".to_string(),
         "Windows.Foundation.Size".to_string(),
         "Windows.Graphics.SizeInt32".to_string(),
+        "Windows.UI.Color".to_string(),
         "Windows.UI.Xaml.Interop.TypeName".to_string(),
     ]);
 
