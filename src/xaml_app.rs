@@ -4,6 +4,7 @@ use std::{
     sync::OnceLock,
 };
 
+use nestix::PropValue;
 use windows::Win32::{
     Foundation::RPC_E_CHANGED_MODE,
     System::Com::{COINIT_APARTMENTTHREADED, CoInitializeEx},
@@ -44,10 +45,11 @@ unsafe extern "system" {
 pub(crate) struct XamlApp {
     is_running: Rc<Cell<bool>>,
     window_count: Rc<Cell<usize>>,
+    quit_when_all_windows_closed: PropValue<bool>,
 }
 
 impl XamlApp {
-    pub fn initialize() -> Result<Self> {
+    pub fn initialize(quit_when_all_windows_closed: PropValue<bool>) -> Result<Self> {
         initialize_windows_app_runtime()?;
         crate::window_native::set_process_dpi_awareness();
 
@@ -65,6 +67,7 @@ impl XamlApp {
         Ok(Self {
             is_running: Rc::new(Cell::new(false)),
             window_count: Rc::new(Cell::new(0)),
+            quit_when_all_windows_closed,
         })
     }
 
@@ -119,6 +122,13 @@ impl XamlApp {
         self.window_count
             .set(self.window_count.get().saturating_sub(1));
         remove_pending_window(window);
+
+        if self.is_running.get()
+            && self.quit_when_all_windows_closed.get()
+            && self.window_count.get() == 0
+        {
+            self.quit();
+        }
     }
 }
 

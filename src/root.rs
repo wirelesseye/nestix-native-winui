@@ -13,15 +13,16 @@ thread_local! {
 pub fn Root(props: &RootProps, element: &Element) -> Element {
     const DEFAULT_CLASSES: [&str; 2] = ["__Root", "__winui_Root"];
 
-    let app =
-        APP.with(|slot| {
-            slot.get_or_init(|| {
-                Rc::new(XamlApp::initialize().expect(
+    let app = APP.with(|slot| {
+        slot.get_or_init(|| {
+            Rc::new(
+                XamlApp::initialize(props.quit_when_all_windows_closed.clone()).expect(
                     "failed to initialize WinUI platform; WinUI requires a Windows STA thread",
-                ))
-            })
-            .clone()
-        });
+                ),
+            )
+        })
+        .clone()
+    });
 
     element.after_mount(closure!(
         [app] || {
