@@ -10,6 +10,7 @@ members = ["examples/*"]
 [dependencies]
 nestix = { git = "https://github.com/wirelesseye/nestix.git" }
 nestix-native-core = { git = "https://github.com/wirelesseye/nestix-native.git", features = ["taffy"] }
+taffy = "0.9.2"
 windows = { git = "https://github.com/microsoft/windows-rs.git", rev = "c166957", features = [
     "Win32_Foundation",
     "Win32_System_Com",
@@ -19,6 +20,7 @@ windows-collections = { git = "https://github.com/microsoft/windows-rs.git", rev
 windows-core = { git = "https://github.com/microsoft/windows-rs.git", rev = "c166957" }
 windows-future = { git = "https://github.com/microsoft/windows-rs.git", rev = "c166957" }
 windows-numerics = { git = "https://github.com/microsoft/windows-rs.git", rev = "c166957" }
+windows-time = { git = "https://github.com/microsoft/windows-rs.git", rev = "c166957" }
 
 [build-dependencies]
 windows-bindgen = { git = "https://github.com/microsoft/windows-rs.git", rev = "c166957" }

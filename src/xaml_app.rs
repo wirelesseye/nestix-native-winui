@@ -12,10 +12,12 @@ use windows_core::{Error, HRESULT, Interface, PCWSTR, Result};
 
 use crate::{
     bindings::Microsoft::UI::Xaml::{
-        Application, ApplicationInitializationCallback, Controls::XamlControlsResources,
+        Application, ApplicationInitializationCallback, Controls::XamlControlsResources, Thickness,
     },
     xaml::XamlElement,
 };
+
+use crate::bindings::Windows::Foundation::{IReference, PropertyValue};
 
 const WINDOWS_APP_SDK_RELEASE_MAJORMINOR: u32 = 0x0001_0008;
 const WINDOWS_APP_SDK_MIN_VERSION: u64 = 0;
@@ -149,6 +151,15 @@ impl Drop for XamlWindowRegistrationInner {
 
 pub(crate) fn is_xaml_running() -> bool {
     XAML_RUNNING.get()
+}
+
+pub(crate) fn theme_thickness(key: &str) -> Result<Thickness> {
+    let resources = Application::Current()?.Resources()?;
+    let key = PropertyValue::CreateString(&windows_core::HSTRING::from(key))?;
+    resources
+        .Lookup(&key)?
+        .cast::<IReference<Thickness>>()?
+        .Value()
 }
 
 fn push_pending_window(window: XamlElement) {

@@ -332,12 +332,14 @@ version = "0.1.0"
 dependencies = [
  "nestix",
  "nestix-native-core",
+ "taffy",
  "windows",
  "windows-bindgen",
  "windows-collections",
  "windows-core",
  "windows-future",
  "windows-numerics",
+ "windows-time",
 ]
 
 [[package]]
