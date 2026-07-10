@@ -8,6 +8,7 @@ use crate::{
         Microsoft::UI::Xaml::{
             Controls::{
                 Button, Canvas, Grid, RowDefinition, SelectorBar, SelectorBarItem, TextBlock,
+                TextBox,
             },
             FrameworkElement, GridLength, GridUnitType, HorizontalAlignment, UIElement,
             VerticalAlignment, Visibility, Window,
@@ -20,6 +21,7 @@ use crate::{
     xaml_events::{
         RegisteredClickCallback, RegisteredContentSizeCallback, RegisteredResizeCallback,
         RegisteredScaleFactorCallback, RegisteredTabSelectionCallback,
+        RegisteredTextChangedCallback,
     },
 };
 
@@ -38,6 +40,7 @@ pub(crate) enum XamlKind {
     Canvas(CanvasElement),
     Button(ButtonElement),
     TextBlock(TextBlockElement),
+    TextBox(TextBoxElement),
     TabView(TabViewElement),
     TabViewItem(TabViewItemElement),
 }
@@ -72,6 +75,14 @@ pub(crate) struct ButtonElement {
 pub(crate) struct TextBlockElement {
     text: String,
     realized: Option<TextBlock>,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct TextBoxElement {
+    text: String,
+    on_text_change: Option<Shared<dyn Fn(String)>>,
+    realized: Option<TextBox>,
+    text_changed_handler: Rc<RefCell<Option<TextChangedHandlerState>>>,
 }
 
 #[derive(Clone)]
@@ -152,6 +163,11 @@ pub(crate) struct ResizeHandlerState {
     _revoker: EventRevoker,
 }
 
+pub(crate) struct TextChangedHandlerState {
+    callback: RegisteredTextChangedCallback,
+    _revoker: EventRevoker,
+}
+
 impl std::fmt::Debug for ClickHandlerState {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter
@@ -175,6 +191,15 @@ impl std::fmt::Debug for ResizeHandlerState {
         formatter
             .debug_struct("ResizeHandlerState")
             .field("callback_id", &self.callback_id)
+            .finish_non_exhaustive()
+    }
+}
+
+impl std::fmt::Debug for TextChangedHandlerState {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("TextChangedHandlerState")
+            .field("callback_id", &self.callback.id())
             .finish_non_exhaustive()
     }
 }
@@ -224,6 +249,15 @@ impl XamlElement {
         Ok(Self::new(XamlKind::TextBlock(TextBlockElement {
             text,
             realized: None,
+        })))
+    }
+
+    pub fn text_box(text: String) -> Result<Self> {
+        Ok(Self::new(XamlKind::TextBox(TextBoxElement {
+            text,
+            on_text_change: None,
+            realized: None,
+            text_changed_handler: Rc::new(RefCell::new(None)),
         })))
     }
 
@@ -350,41 +384,59 @@ impl XamlElement {
                     }
                 }
             }
-            XamlKind::Button(_) | XamlKind::TextBlock(_) => {}
+            XamlKind::Button(_) | XamlKind::TextBlock(_) | XamlKind::TextBox(_) => {}
         }
         Ok(())
     }
 
     pub fn set_text(&self, text: String) -> Result<()> {
         let text_value = HSTRING::from(text.clone());
-        {
+        let text_box_to_update = {
             match &mut *self.0.kind.borrow_mut() {
                 XamlKind::Window(element) => {
-                    element.title = text;
+                    element.title = text.clone();
                     if let Some(window) = &element.realized {
                         window.SetTitle(&text_value)?;
                     }
+                    None
                 }
                 XamlKind::Button(element) => {
-                    element.title = text;
+                    element.title = text.clone();
                     if let Some(realized) = &element.realized {
                         realized.label.SetText(&text_value)?;
                     }
+                    None
                 }
                 XamlKind::TextBlock(element) => {
-                    element.text = text;
+                    element.text = text.clone();
                     if let Some(block) = &element.realized {
                         block.SetText(&text_value)?;
                     }
+                    None
+                }
+                XamlKind::TextBox(element) => {
+                    element.text = text;
+                    if let Some(text_box) = &element.realized
+                        && text_box.Text()? != text_value
+                    {
+                        Some(text_box.clone())
+                    } else {
+                        None
+                    }
                 }
                 XamlKind::TabViewItem(element) => {
-                    element.title = text;
+                    element.title = text.clone();
                     if let Some(realized) = &element.realized {
                         realized.selector_item.SetText(&text_value)?;
                     }
+                    None
                 }
-                XamlKind::Canvas(_) | XamlKind::TabView(_) => {}
+                XamlKind::Canvas(_) | XamlKind::TabView(_) => None,
             }
+        };
+
+        if let Some(text_box) = text_box_to_update {
+            text_box.SetText(&text_value)?;
         }
         self.measure_intrinsic()?;
         Ok(())
@@ -456,6 +508,19 @@ impl XamlElement {
         element.on_click = handler.clone();
         if let Some(realized) = &element.realized {
             element.attach_click_handler(&realized.control, handler)?;
+        }
+        Ok(())
+    }
+
+    pub fn set_text_changed(&self, handler: Option<Shared<dyn Fn(String)>>) -> Result<()> {
+        let mut kind = self.0.kind.borrow_mut();
+        let XamlKind::TextBox(element) = &mut *kind else {
+            return Ok(());
+        };
+
+        element.on_text_change = handler.clone();
+        if let Some(text_box) = &element.realized {
+            element.attach_text_changed_handler(text_box, handler)?;
         }
         Ok(())
     }
@@ -606,6 +671,22 @@ impl XamlElement {
                         .max(realized.control.MinHeight()? as f32),
                 }
             }
+            XamlKind::TextBox(element) => {
+                let text_box = element.realized.as_ref().unwrap();
+                text_box.ApplyTemplate()?;
+                ui_element.Measure(available)?;
+                let desired = ui_element.DesiredSize()?;
+                let min_width = (text_box.MinWidth()? as f32).max(
+                    crate::xaml_app::theme_f64("TextControlThemeMinWidth").unwrap_or(64.0) as f32,
+                );
+                let min_height = (text_box.MinHeight()? as f32).max(
+                    crate::xaml_app::theme_f64("TextControlThemeMinHeight").unwrap_or(32.0) as f32,
+                );
+                Size {
+                    Width: desired.Width.max(min_width),
+                    Height: desired.Height.max(min_height),
+                }
+            }
             _ => {
                 ui_element.Measure(available)?;
                 ui_element.DesiredSize()?
@@ -633,6 +714,7 @@ impl XamlElement {
             XamlKind::Canvas(element) => element.realize()?,
             XamlKind::Button(element) => element.realize()?,
             XamlKind::TextBlock(element) => element.realize()?,
+            XamlKind::TextBox(element) => element.realize()?,
             XamlKind::TabView(element) => element.realize()?,
             XamlKind::TabViewItem(element) => element.realize()?,
         }
@@ -665,6 +747,7 @@ impl XamlElement {
             XamlKind::Canvas(element) => element.realized.is_some(),
             XamlKind::Button(element) => element.realized.is_some(),
             XamlKind::TextBlock(element) => element.realized.is_some(),
+            XamlKind::TextBox(element) => element.realized.is_some(),
             XamlKind::TabView(element) => element.realized.is_some(),
             XamlKind::TabViewItem(element) => element.realized.is_some(),
         }
@@ -732,7 +815,7 @@ impl XamlElement {
                     children.InsertAt(index.min(children.Size()? as usize) as u32, &child)?;
                 }
             }
-            XamlKind::Button(_) | XamlKind::TextBlock(_) => {}
+            XamlKind::Button(_) | XamlKind::TextBlock(_) | XamlKind::TextBox(_) => {}
         }
         Ok(())
     }
@@ -744,6 +827,7 @@ impl XamlElement {
             XamlKind::Canvas(element) => element.realized.as_ref().unwrap().cast(),
             XamlKind::Button(element) => element.realized.as_ref().unwrap().control.cast(),
             XamlKind::TextBlock(element) => element.realized.as_ref().unwrap().cast(),
+            XamlKind::TextBox(element) => element.realized.as_ref().unwrap().cast(),
             XamlKind::TabView(element) => element.realized.as_ref().unwrap().control.cast(),
             XamlKind::TabViewItem(element) => element.realized.as_ref().unwrap().content.cast(),
         }
@@ -934,6 +1018,44 @@ impl TextBlockElement {
         let block = TextBlock::new()?;
         block.SetText(&HSTRING::from(&self.text))?;
         self.realized = Some(block);
+        Ok(())
+    }
+}
+
+impl TextBoxElement {
+    fn realize(&mut self) -> Result<()> {
+        let text_box = TextBox::new()?;
+        text_box.SetText(&HSTRING::from(&self.text))?;
+        self.attach_text_changed_handler(&text_box, self.on_text_change.clone())?;
+        self.realized = Some(text_box);
+        Ok(())
+    }
+
+    fn attach_text_changed_handler(
+        &self,
+        text_box: &TextBox,
+        handler: Option<Shared<dyn Fn(String)>>,
+    ) -> Result<()> {
+        self.text_changed_handler.take();
+        let Some(handler) = handler else {
+            return Ok(());
+        };
+
+        let callback = RegisteredTextChangedCallback::register(handler);
+        let callback_id = callback.id();
+        let revoker = text_box.TextChanged(move |sender, _| {
+            if let Some(sender) = &*sender
+                && let Ok(sender) = sender.cast::<TextBox>()
+                && let Ok(text) = sender.Text()
+            {
+                RegisteredTextChangedCallback::invoke(callback_id, text.to_string_lossy());
+            }
+        })?;
+        self.text_changed_handler
+            .replace(Some(TextChangedHandlerState {
+                callback,
+                _revoker: revoker,
+            }));
         Ok(())
     }
 }

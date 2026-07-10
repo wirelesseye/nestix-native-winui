@@ -12,6 +12,7 @@ thread_local! {
     static RESIZE_CALLBACKS: RefCell<HashMap<u64, nestix::Shared<dyn Fn(Size)>>> = RefCell::new(HashMap::new());
     static TAB_SELECTION_CALLBACKS: RefCell<HashMap<u64, nestix::Shared<dyn Fn(String)>>> = RefCell::new(HashMap::new());
     static CONTENT_SIZE_CALLBACKS: RefCell<HashMap<u64, nestix::Shared<dyn Fn(f32, f32)>>> = RefCell::new(HashMap::new());
+    static TEXT_CHANGED_CALLBACKS: RefCell<HashMap<u64, nestix::Shared<dyn Fn(String)>>> = RefCell::new(HashMap::new());
 }
 
 #[derive(Debug)]
@@ -33,17 +34,50 @@ impl RegisteredContentSizeCallback {
     }
 
     pub fn invoke(id: u64, width: f32, height: f32) {
-        CONTENT_SIZE_CALLBACKS.with_borrow(|callbacks| {
-            if let Some(callback) = callbacks.get(&id) {
-                callback(width, height);
-            }
-        });
+        let callback = CONTENT_SIZE_CALLBACKS.with_borrow(|callbacks| callbacks.get(&id).cloned());
+        if let Some(callback) = callback {
+            callback(width, height);
+        }
     }
 }
 
 impl Drop for RegisteredContentSizeCallback {
     fn drop(&mut self) {
         CONTENT_SIZE_CALLBACKS.with_borrow_mut(|callbacks| {
+            callbacks.remove(&self.id);
+        });
+    }
+}
+
+#[derive(Debug)]
+pub(crate) struct RegisteredTextChangedCallback {
+    id: u64,
+}
+
+impl RegisteredTextChangedCallback {
+    pub fn register(callback: nestix::Shared<dyn Fn(String)>) -> Self {
+        let id = next_callback_id();
+        TEXT_CHANGED_CALLBACKS.with_borrow_mut(|callbacks| {
+            callbacks.insert(id, callback);
+        });
+        Self { id }
+    }
+
+    pub fn id(&self) -> u64 {
+        self.id
+    }
+
+    pub fn invoke(id: u64, text: String) {
+        let callback = TEXT_CHANGED_CALLBACKS.with_borrow(|callbacks| callbacks.get(&id).cloned());
+        if let Some(callback) = callback {
+            callback(text);
+        }
+    }
+}
+
+impl Drop for RegisteredTextChangedCallback {
+    fn drop(&mut self) {
+        TEXT_CHANGED_CALLBACKS.with_borrow_mut(|callbacks| {
             callbacks.remove(&self.id);
         });
     }
@@ -68,11 +102,10 @@ impl RegisteredTabSelectionCallback {
     }
 
     pub fn invoke(id: u64, selected_id: String) {
-        TAB_SELECTION_CALLBACKS.with_borrow(|callbacks| {
-            if let Some(callback) = callbacks.get(&id) {
-                callback(selected_id);
-            }
-        });
+        let callback = TAB_SELECTION_CALLBACKS.with_borrow(|callbacks| callbacks.get(&id).cloned());
+        if let Some(callback) = callback {
+            callback(selected_id);
+        }
     }
 }
 
@@ -103,11 +136,10 @@ impl RegisteredClickCallback {
     }
 
     pub fn invoke(id: u64) {
-        CLICK_CALLBACKS.with_borrow(|callbacks| {
-            if let Some(callback) = callbacks.get(&id) {
-                callback();
-            }
-        });
+        let callback = CLICK_CALLBACKS.with_borrow(|callbacks| callbacks.get(&id).cloned());
+        if let Some(callback) = callback {
+            callback();
+        }
     }
 }
 
@@ -138,11 +170,10 @@ impl RegisteredScaleFactorCallback {
     }
 
     pub fn invoke(id: u64, scale_factor: f64) {
-        SCALE_FACTOR_CALLBACKS.with_borrow(|callbacks| {
-            if let Some(callback) = callbacks.get(&id) {
-                callback(scale_factor);
-            }
-        });
+        let callback = SCALE_FACTOR_CALLBACKS.with_borrow(|callbacks| callbacks.get(&id).cloned());
+        if let Some(callback) = callback {
+            callback(scale_factor);
+        }
     }
 }
 
@@ -173,11 +204,10 @@ impl RegisteredResizeCallback {
     }
 
     pub fn invoke(id: u64, size: Size) {
-        RESIZE_CALLBACKS.with_borrow(|callbacks| {
-            if let Some(callback) = callbacks.get(&id) {
-                callback(size);
-            }
-        });
+        let callback = RESIZE_CALLBACKS.with_borrow(|callbacks| callbacks.get(&id).cloned());
+        if let Some(callback) = callback {
+            callback(size);
+        }
     }
 }
 

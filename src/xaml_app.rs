@@ -172,6 +172,12 @@ pub(crate) fn theme_thickness(key: &str) -> Result<Thickness> {
         .Value()
 }
 
+pub(crate) fn theme_f64(key: &str) -> Result<f64> {
+    let resources = Application::Current()?.Resources()?;
+    let key = PropertyValue::CreateString(&windows_core::HSTRING::from(key))?;
+    resources.Lookup(&key)?.cast::<IReference<f64>>()?.Value()
+}
+
 fn push_pending_window(window: XamlElement) {
     PENDING_WINDOWS.with_borrow_mut(|windows| {
         if !windows.contains(&window) {
