@@ -6,8 +6,11 @@ use windows_core::{Error, EventRevoker, HRESULT, HSTRING, Interface, Result};
 use crate::{
     bindings::{
         Microsoft::UI::Xaml::{
-            Controls::{Button, Canvas, TextBlock},
-            FrameworkElement, HorizontalAlignment, UIElement, VerticalAlignment, Window,
+            Controls::{
+                Button, Canvas, Grid, RowDefinition, SelectorBar, SelectorBarItem, TextBlock,
+            },
+            FrameworkElement, GridLength, GridUnitType, HorizontalAlignment, UIElement,
+            VerticalAlignment, Visibility, Window,
         },
         Windows::Foundation::Size,
         Windows::Graphics::SizeInt32,
@@ -15,7 +18,8 @@ use crate::{
     },
     xaml_app::is_xaml_running,
     xaml_events::{
-        RegisteredClickCallback, RegisteredResizeCallback, RegisteredScaleFactorCallback,
+        RegisteredClickCallback, RegisteredContentSizeCallback, RegisteredResizeCallback,
+        RegisteredScaleFactorCallback, RegisteredTabSelectionCallback,
     },
 };
 
@@ -34,6 +38,8 @@ pub(crate) enum XamlKind {
     Canvas(CanvasElement),
     Button(ButtonElement),
     TextBlock(TextBlockElement),
+    TabView(TabViewElement),
+    TabViewItem(TabViewItemElement),
 }
 
 #[derive(Debug, Clone)]
@@ -66,6 +72,44 @@ pub(crate) struct ButtonElement {
 pub(crate) struct TextBlockElement {
     text: String,
     realized: Option<TextBlock>,
+}
+
+#[derive(Clone)]
+pub(crate) struct TabViewElement {
+    realized: Option<RealizedTabView>,
+    selected_changed: Rc<RefCell<Option<Shared<dyn Fn(String)>>>>,
+    content_resized: Rc<RefCell<Option<Shared<dyn Fn(f32, f32)>>>>,
+    selection_handler: Rc<RefCell<Option<TabSelectionHandlerState>>>,
+    content_resize_handler: Rc<RefCell<Option<TabContentResizeHandlerState>>>,
+}
+
+impl std::fmt::Debug for TabViewElement {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("TabViewElement")
+            .field("realized", &self.realized)
+            .finish_non_exhaustive()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct TabViewItemElement {
+    id: String,
+    title: String,
+    realized: Option<RealizedTabViewItem>,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct RealizedTabView {
+    control: Grid,
+    selector_bar: SelectorBar,
+    content: Grid,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct RealizedTabViewItem {
+    selector_item: SelectorBarItem,
+    content: Canvas,
 }
 
 #[derive(Debug, Clone)]
@@ -183,6 +227,24 @@ impl XamlElement {
         })))
     }
 
+    pub fn tab_view() -> Result<Self> {
+        Ok(Self::new(XamlKind::TabView(TabViewElement {
+            realized: None,
+            selected_changed: Rc::new(RefCell::new(None)),
+            content_resized: Rc::new(RefCell::new(None)),
+            selection_handler: Rc::new(RefCell::new(None)),
+            content_resize_handler: Rc::new(RefCell::new(None)),
+        })))
+    }
+
+    pub fn tab_view_item(id: String, title: String) -> Result<Self> {
+        Ok(Self::new(XamlKind::TabViewItem(TabViewItemElement {
+            id,
+            title,
+            realized: None,
+        })))
+    }
+
     pub fn activate(&self) -> Result<()> {
         if !is_xaml_running() {
             return Ok(());
@@ -224,6 +286,14 @@ impl XamlElement {
         self.0.children.borrow().contains(child)
     }
 
+    pub fn child_index(&self, child: &XamlElement) -> Option<usize> {
+        self.0
+            .children
+            .borrow()
+            .iter()
+            .position(|item| item == child)
+    }
+
     pub fn remove_child(&self, child: &XamlElement) -> Result<()> {
         self.0.children.borrow_mut().retain(|item| item != child);
 
@@ -241,6 +311,39 @@ impl XamlElement {
                 if let Some(canvas) = &element.realized {
                     let child = child.as_ui_element()?;
                     let children = canvas.Children()?;
+                    let mut index = 0;
+                    if children.IndexOf(&child, &mut index)? {
+                        children.RemoveAt(index)?;
+                    }
+                }
+            }
+            XamlKind::TabView(element) => {
+                if let Some(realized) = &element.realized {
+                    let child_kind = child.0.kind.borrow();
+                    if let XamlKind::TabViewItem(item) = &*child_kind
+                        && let Some(item) = &item.realized
+                    {
+                        let items = realized.selector_bar.Items()?;
+                        let mut index = 0;
+                        if items.IndexOf(&item.selector_item, &mut index)? {
+                            items.RemoveAt(index)?;
+                        }
+                        if realized.selector_bar.SelectedItem().is_err() && items.Size()? > 0 {
+                            let first = items.GetAt(0)?;
+                            realized.selector_bar.SetSelectedItem(&first)?;
+                        }
+                        let pages = realized.content.Children()?;
+                        let page: UIElement = item.content.cast()?;
+                        if pages.IndexOf(&page, &mut index)? {
+                            pages.RemoveAt(index)?;
+                        }
+                    }
+                }
+            }
+            XamlKind::TabViewItem(element) => {
+                if let Some(realized) = &element.realized {
+                    let child = child.as_ui_element()?;
+                    let children = realized.content.Children()?;
                     let mut index = 0;
                     if children.IndexOf(&child, &mut index)? {
                         children.RemoveAt(index)?;
@@ -274,7 +377,13 @@ impl XamlElement {
                         block.SetText(&text_value)?;
                     }
                 }
-                XamlKind::Canvas(_) => {}
+                XamlKind::TabViewItem(element) => {
+                    element.title = text;
+                    if let Some(realized) = &element.realized {
+                        realized.selector_item.SetText(&text_value)?;
+                    }
+                }
+                XamlKind::Canvas(_) | XamlKind::TabView(_) => {}
             }
         }
         self.measure_intrinsic()?;
@@ -351,6 +460,57 @@ impl XamlElement {
         Ok(())
     }
 
+    pub fn set_tab_selected(&self, handler: Shared<dyn Fn(String)>) -> Result<()> {
+        let mut kind = self.0.kind.borrow_mut();
+        let XamlKind::TabView(element) = &mut *kind else {
+            return Ok(());
+        };
+        element.selected_changed.replace(Some(handler));
+        if let Some(realized) = element.realized.clone() {
+            element.attach_selection_handler(&realized)?;
+        }
+        Ok(())
+    }
+
+    pub fn set_tab_content_resized(&self, handler: Shared<dyn Fn(f32, f32)>) -> Result<()> {
+        let mut kind = self.0.kind.borrow_mut();
+        let XamlKind::TabView(element) = &mut *kind else {
+            return Ok(());
+        };
+        element.content_resized.replace(Some(handler));
+        if let Some(realized) = element.realized.clone() {
+            element.attach_content_resize_handler(&realized)?;
+        }
+        Ok(())
+    }
+
+    pub fn set_visible(&self, visible: bool) -> Result<()> {
+        let kind = self.0.kind.borrow();
+        let XamlKind::TabViewItem(element) = &*kind else {
+            return Ok(());
+        };
+        if let Some(realized) = &element.realized {
+            realized.content.SetVisibility(if visible {
+                Visibility::Visible
+            } else {
+                Visibility::Collapsed
+            })?;
+        }
+        Ok(())
+    }
+
+    pub fn set_tab_item_id(&self, id: String) -> Result<()> {
+        let mut kind = self.0.kind.borrow_mut();
+        let XamlKind::TabViewItem(element) = &mut *kind else {
+            return Ok(());
+        };
+        element.id = id.clone();
+        if let Some(realized) = &element.realized {
+            realized.selector_item.SetName(&HSTRING::from(id))?;
+        }
+        Ok(())
+    }
+
     pub fn set_background_color(&self, color: Option<nestix_native_core::Color>) -> Result<()> {
         let mut kind = self.0.kind.borrow_mut();
         let XamlKind::Canvas(element) = &mut *kind else {
@@ -405,6 +565,7 @@ impl XamlElement {
         framework_element.SetHeight(layout.height)?;
         Canvas::SetLeft(&ui_element, layout.x)?;
         Canvas::SetTop(&ui_element, layout.y)?;
+
         Ok(())
     }
 
@@ -472,6 +633,8 @@ impl XamlElement {
             XamlKind::Canvas(element) => element.realize()?,
             XamlKind::Button(element) => element.realize()?,
             XamlKind::TextBlock(element) => element.realize()?,
+            XamlKind::TabView(element) => element.realize()?,
+            XamlKind::TabViewItem(element) => element.realize()?,
         }
 
         let children = self.0.children.borrow().clone();
@@ -502,10 +665,13 @@ impl XamlElement {
             XamlKind::Canvas(element) => element.realized.is_some(),
             XamlKind::Button(element) => element.realized.is_some(),
             XamlKind::TextBlock(element) => element.realized.is_some(),
+            XamlKind::TabView(element) => element.realized.is_some(),
+            XamlKind::TabViewItem(element) => element.realized.is_some(),
         }
     }
 
     fn insert_realized_child(&self, child: &XamlElement, index: usize) -> Result<()> {
+        let child_element = child;
         let child = child.as_ui_element()?;
         match &mut *self.0.kind.borrow_mut() {
             XamlKind::Window(element) => {
@@ -530,6 +696,42 @@ impl XamlElement {
                     children.InsertAt(index.min(children.Size()? as usize) as u32, &child)?;
                 }
             }
+            XamlKind::TabView(element) => {
+                if let Some(realized) = &element.realized {
+                    let child_kind = child_element.0.kind.borrow();
+                    let XamlKind::TabViewItem(item) = &*child_kind else {
+                        return Ok(());
+                    };
+                    let item = item.realized.as_ref().unwrap();
+                    let items = realized.selector_bar.Items()?;
+                    let mut old_index = 0;
+                    if items.IndexOf(&item.selector_item, &mut old_index)? {
+                        items.RemoveAt(old_index)?;
+                    }
+                    let index = index.min(items.Size()? as usize) as u32;
+                    items.InsertAt(index, &item.selector_item)?;
+
+                    let pages = realized.content.Children()?;
+                    let page: UIElement = item.content.cast()?;
+                    if pages.IndexOf(&page, &mut old_index)? {
+                        pages.RemoveAt(old_index)?;
+                    }
+                    pages.InsertAt(index.min(pages.Size()?), &page)?;
+                    if realized.selector_bar.SelectedItem().is_err() {
+                        realized.selector_bar.SetSelectedItem(&item.selector_item)?;
+                    }
+                }
+            }
+            XamlKind::TabViewItem(element) => {
+                if let Some(realized) = &element.realized {
+                    let children = realized.content.Children()?;
+                    let mut old_index = 0;
+                    if children.IndexOf(&child, &mut old_index)? {
+                        children.RemoveAt(old_index)?;
+                    }
+                    children.InsertAt(index.min(children.Size()? as usize) as u32, &child)?;
+                }
+            }
             XamlKind::Button(_) | XamlKind::TextBlock(_) => {}
         }
         Ok(())
@@ -542,6 +744,8 @@ impl XamlElement {
             XamlKind::Canvas(element) => element.realized.as_ref().unwrap().cast(),
             XamlKind::Button(element) => element.realized.as_ref().unwrap().control.cast(),
             XamlKind::TextBlock(element) => element.realized.as_ref().unwrap().cast(),
+            XamlKind::TabView(element) => element.realized.as_ref().unwrap().control.cast(),
+            XamlKind::TabViewItem(element) => element.realized.as_ref().unwrap().content.cast(),
         }
     }
 
@@ -734,6 +938,113 @@ impl TextBlockElement {
     }
 }
 
+pub(crate) struct TabSelectionHandlerState {
+    _callback: RegisteredTabSelectionCallback,
+    _revoker: EventRevoker,
+}
+
+pub(crate) struct TabContentResizeHandlerState {
+    _callback: RegisteredContentSizeCallback,
+    _revoker: EventRevoker,
+}
+
+impl TabViewElement {
+    fn realize(&mut self) -> Result<()> {
+        let control = Grid::new()?;
+        let selector_bar = SelectorBar::new()?;
+        let content = Grid::new()?;
+
+        let rows = control.RowDefinitions()?;
+        let header_row = RowDefinition::new()?;
+        header_row.SetHeight(GridLength {
+            Value: 1.0,
+            GridUnitType: GridUnitType::Auto,
+        })?;
+        rows.Append(&header_row)?;
+        let content_row = RowDefinition::new()?;
+        content_row.SetHeight(GridLength {
+            Value: 1.0,
+            GridUnitType: GridUnitType::Star,
+        })?;
+        rows.Append(&content_row)?;
+        Grid::SetRow(&content, 1)?;
+
+        let control_children = control.Children()?;
+        control_children.Append(&selector_bar.cast::<UIElement>()?)?;
+        control_children.Append(&content.cast::<UIElement>()?)?;
+
+        let realized = RealizedTabView {
+            control,
+            selector_bar,
+            content,
+        };
+        self.attach_selection_handler(&realized)?;
+        self.attach_content_resize_handler(&realized)?;
+        self.realized = Some(realized);
+        Ok(())
+    }
+
+    fn attach_selection_handler(&self, realized: &RealizedTabView) -> Result<()> {
+        self.selection_handler.take();
+        let Some(callback) = self.selected_changed.borrow().clone() else {
+            return Ok(());
+        };
+        let callback = RegisteredTabSelectionCallback::register(callback);
+        let callback_id = callback.id();
+        let revoker = realized.selector_bar.SelectionChanged(move |sender, _| {
+            if let Some(sender) = &*sender
+                && let Ok(selected) = sender.SelectedItem()
+                && let Ok(id) = selected.Name()
+            {
+                RegisteredTabSelectionCallback::invoke(callback_id, id.to_string_lossy());
+            }
+        })?;
+        self.selection_handler
+            .replace(Some(TabSelectionHandlerState {
+                _callback: callback,
+                _revoker: revoker,
+            }));
+        Ok(())
+    }
+
+    fn attach_content_resize_handler(&self, realized: &RealizedTabView) -> Result<()> {
+        self.content_resize_handler.take();
+        let Some(callback) = self.content_resized.borrow().clone() else {
+            return Ok(());
+        };
+        let callback = RegisteredContentSizeCallback::register(callback);
+        let callback_id = callback.id();
+        let revoker = realized.content.SizeChanged(move |_, args| {
+            if let Some(args) = &*args
+                && let Ok(size) = args.NewSize()
+            {
+                RegisteredContentSizeCallback::invoke(callback_id, size.Width, size.Height);
+            }
+        })?;
+        self.content_resize_handler
+            .replace(Some(TabContentResizeHandlerState {
+                _callback: callback,
+                _revoker: revoker,
+            }));
+        Ok(())
+    }
+}
+
+impl TabViewItemElement {
+    fn realize(&mut self) -> Result<()> {
+        let selector_item = SelectorBarItem::new()?;
+        selector_item.SetName(&HSTRING::from(&self.id))?;
+        selector_item.SetText(&HSTRING::from(&self.title))?;
+        let content = Canvas::new()?;
+        content.SetVisibility(Visibility::Collapsed)?;
+        self.realized = Some(RealizedTabViewItem {
+            selector_item,
+            content,
+        });
+        Ok(())
+    }
+}
+
 fn set_canvas_background(canvas: &Canvas, color: Option<nestix_native_core::Color>) -> Result<()> {
     let Some(color) = color else {
         return canvas.SetBackground(None);
@@ -755,6 +1066,7 @@ fn set_canvas_background(canvas: &Canvas, color: Option<nestix_native_core::Colo
 #[cfg(test)]
 mod tests {
     use super::{XamlElement, XamlKind};
+    use nestix_native_core::TreeContext;
 
     #[test]
     fn child_operations_preserve_requested_order_before_realization() {
@@ -798,6 +1110,41 @@ mod tests {
         parent.append_child(first.clone()).unwrap();
 
         assert_eq!(parent.0.children.borrow().as_slice(), &[second, first]);
+    }
+
+    #[test]
+    fn native_child_index_excludes_missing_logical_siblings() {
+        let canvas = XamlElement::canvas().unwrap();
+        let button = XamlElement::button("button".into()).unwrap();
+        canvas.insert_child(button.clone(), 1).unwrap();
+
+        let tree = TreeContext::new();
+        let parent_node = tree.create_node(false);
+        let button_node = tree.create_node(true);
+        tree.insert_child(
+            parent_node,
+            button_node,
+            canvas.child_index(&button).unwrap(),
+        );
+
+        assert_eq!(canvas.child_index(&button), Some(0));
+    }
+
+    #[test]
+    fn tab_items_preserve_requested_order_before_realization() {
+        let tabs = XamlElement::tab_view().unwrap();
+        let first = XamlElement::tab_view_item("first".into(), "First".into()).unwrap();
+        let second = XamlElement::tab_view_item("second".into(), "Second".into()).unwrap();
+
+        tabs.append_child(first.clone()).unwrap();
+        tabs.insert_child(second.clone(), 0).unwrap();
+        assert_eq!(
+            tabs.0.children.borrow().as_slice(),
+            &[second.clone(), first.clone()]
+        );
+
+        tabs.remove_child(&second).unwrap();
+        assert_eq!(tabs.0.children.borrow().as_slice(), &[first]);
     }
 
     #[test]

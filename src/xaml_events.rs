@@ -10,6 +10,78 @@ thread_local! {
     static CLICK_CALLBACKS: RefCell<HashMap<u64, nestix::Shared<dyn Fn()>>> = RefCell::new(HashMap::new());
     static SCALE_FACTOR_CALLBACKS: RefCell<HashMap<u64, nestix::Shared<dyn Fn(f64)>>> = RefCell::new(HashMap::new());
     static RESIZE_CALLBACKS: RefCell<HashMap<u64, nestix::Shared<dyn Fn(Size)>>> = RefCell::new(HashMap::new());
+    static TAB_SELECTION_CALLBACKS: RefCell<HashMap<u64, nestix::Shared<dyn Fn(String)>>> = RefCell::new(HashMap::new());
+    static CONTENT_SIZE_CALLBACKS: RefCell<HashMap<u64, nestix::Shared<dyn Fn(f32, f32)>>> = RefCell::new(HashMap::new());
+}
+
+#[derive(Debug)]
+pub(crate) struct RegisteredContentSizeCallback {
+    id: u64,
+}
+
+impl RegisteredContentSizeCallback {
+    pub fn register(callback: nestix::Shared<dyn Fn(f32, f32)>) -> Self {
+        let id = next_callback_id();
+        CONTENT_SIZE_CALLBACKS.with_borrow_mut(|callbacks| {
+            callbacks.insert(id, callback);
+        });
+        Self { id }
+    }
+
+    pub fn id(&self) -> u64 {
+        self.id
+    }
+
+    pub fn invoke(id: u64, width: f32, height: f32) {
+        CONTENT_SIZE_CALLBACKS.with_borrow(|callbacks| {
+            if let Some(callback) = callbacks.get(&id) {
+                callback(width, height);
+            }
+        });
+    }
+}
+
+impl Drop for RegisteredContentSizeCallback {
+    fn drop(&mut self) {
+        CONTENT_SIZE_CALLBACKS.with_borrow_mut(|callbacks| {
+            callbacks.remove(&self.id);
+        });
+    }
+}
+
+#[derive(Debug)]
+pub(crate) struct RegisteredTabSelectionCallback {
+    id: u64,
+}
+
+impl RegisteredTabSelectionCallback {
+    pub fn register(callback: nestix::Shared<dyn Fn(String)>) -> Self {
+        let id = next_callback_id();
+        TAB_SELECTION_CALLBACKS.with_borrow_mut(|callbacks| {
+            callbacks.insert(id, callback);
+        });
+        Self { id }
+    }
+
+    pub fn id(&self) -> u64 {
+        self.id
+    }
+
+    pub fn invoke(id: u64, selected_id: String) {
+        TAB_SELECTION_CALLBACKS.with_borrow(|callbacks| {
+            if let Some(callback) = callbacks.get(&id) {
+                callback(selected_id);
+            }
+        });
+    }
+}
+
+impl Drop for RegisteredTabSelectionCallback {
+    fn drop(&mut self) {
+        TAB_SELECTION_CALLBACKS.with_borrow_mut(|callbacks| {
+            callbacks.remove(&self.id);
+        });
+    }
 }
 
 #[derive(Debug)]

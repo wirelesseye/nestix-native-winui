@@ -255,9 +255,14 @@ pub fn FlexView(props: &FlexViewProps, element: &Element) -> Element {
                         {
                             tree_context.remove_child(node_id, child_node);
                         }
-                        let _ = canvas.insert_child(child, index);
+                        let _ = canvas.insert_child(child.clone(), index);
                         if let Some(child_node) = child_node {
-                            tree_context.insert_child(node_id, child_node, index);
+                            // A Nestix placement index can include elements for which this
+                            // backend produced no native child (for example, an unsupported
+                            // control). Use the Canvas order so Taffy receives an index in its
+                            // own, filtered child list.
+                            let layout_index = canvas.child_index(&child).unwrap();
+                            tree_context.insert_child(node_id, child_node, layout_index);
                             tree_context.refresh();
                         }
                     })),

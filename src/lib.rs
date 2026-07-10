@@ -3,6 +3,7 @@ pub mod button;
 mod contexts;
 pub mod flex_view;
 pub mod root;
+pub mod tab_view;
 pub mod text;
 pub mod window;
 mod window_native;
@@ -24,6 +25,7 @@ mod bindings {
 pub use button::*;
 pub use flex_view::*;
 pub use root::*;
+pub use tab_view::*;
 pub use text::*;
 pub use window::*;
 
@@ -56,15 +58,15 @@ impl Backend for WinUiBackend {
         Some(create_element::<Text>(props))
     }
 
-    fn create_tab_view(&self, _props: nestix_native_core::TabViewProps) -> Option<nestix::Element> {
-        None
+    fn create_tab_view(&self, props: nestix_native_core::TabViewProps) -> Option<nestix::Element> {
+        Some(create_element::<TabView>(props))
     }
 
     fn create_tab_view_item(
         &self,
-        _props: nestix_native_core::TabViewItemProps,
+        props: nestix_native_core::TabViewItemProps,
     ) -> Option<nestix::Element> {
-        None
+        Some(create_element::<TabViewItem>(props))
     }
 
     fn create_window(&self, props: nestix_native_core::WindowProps) -> Option<nestix::Element> {
