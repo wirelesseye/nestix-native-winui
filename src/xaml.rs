@@ -121,7 +121,7 @@ pub(crate) struct RealizedTabView {
 #[derive(Debug, Clone)]
 pub(crate) struct RealizedTabViewItem {
     selector_item: SelectorBarItem,
-    content: Canvas,
+    content: Grid,
 }
 
 #[derive(Debug, Clone)]
@@ -612,6 +612,14 @@ impl XamlElement {
         self.apply_layout()
     }
 
+    #[cfg(test)]
+    pub(crate) fn cached_layout(&self) -> Option<(f64, f64, f64, f64)> {
+        self.0
+            .layout
+            .borrow()
+            .map(|layout| (layout.x, layout.y, layout.width, layout.height))
+    }
+
     pub fn set_measure_callback(&self, callback: Shared<dyn Fn(f32, f32)>) -> Result<()> {
         self.0.measure_callback.replace(Some(callback));
         self.measure_intrinsic()
@@ -814,6 +822,11 @@ impl XamlElement {
             }
             XamlKind::TabViewItem(element) => {
                 if let Some(realized) = &element.realized {
+                    let framework_element = child.cast::<FrameworkElement>()?;
+                    framework_element.SetWidth(f64::NAN)?;
+                    framework_element.SetHeight(f64::NAN)?;
+                    framework_element.SetHorizontalAlignment(HorizontalAlignment::Stretch)?;
+                    framework_element.SetVerticalAlignment(VerticalAlignment::Stretch)?;
                     let children = realized.content.Children()?;
                     let mut old_index = 0;
                     if children.IndexOf(&child, &mut old_index)? {
@@ -1164,7 +1177,7 @@ impl TabViewItemElement {
         let selector_item = SelectorBarItem::new()?;
         selector_item.SetName(&HSTRING::from(&self.id))?;
         selector_item.SetText(&HSTRING::from(&self.title))?;
-        let content = Canvas::new()?;
+        let content = Grid::new()?;
         content.SetVisibility(Visibility::Collapsed)?;
         self.realized = Some(RealizedTabViewItem {
             selector_item,

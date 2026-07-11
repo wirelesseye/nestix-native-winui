@@ -276,7 +276,7 @@ dependencies = [
 [[package]]
 name = "nestix"
 version = "0.1.0"
-source = "git+https://github.com/wirelesseye/nestix.git#c288d55adf0ad3d3aa62de52883540f821378d35"
+source = "git+https://github.com/wirelesseye/nestix.git#4c12b805008f290be1720e9a2911d186d0bc9ad3"
 dependencies = [
  "log",
  "nestix-macros",
@@ -286,7 +286,7 @@ dependencies = [
 [[package]]
 name = "nestix-macros"
 version = "0.1.0"
-source = "git+https://github.com/wirelesseye/nestix.git#c288d55adf0ad3d3aa62de52883540f821378d35"
+source = "git+https://github.com/wirelesseye/nestix.git#4c12b805008f290be1720e9a2911d186d0bc9ad3"
 dependencies = [
  "convert_case",
  "proc-macro-crate",
@@ -298,7 +298,7 @@ dependencies = [
 [[package]]
 name = "nestix-native"
 version = "0.1.0"
-source = "git+https://github.com/wirelesseye/nestix-native.git#3a3c4671f27d3138b523984b8741a7b2ac9c5d9e"
+source = "git+https://github.com/wirelesseye/nestix-native.git#404eae41b9af624c2ac81db30f066c9adaf75476"
 dependencies = [
  "nestix",
  "nestix-native-core",
@@ -307,7 +307,7 @@ dependencies = [
 [[package]]
 name = "nestix-native-core"
 version = "0.1.0"
-source = "git+https://github.com/wirelesseye/nestix-native.git#3a3c4671f27d3138b523984b8741a7b2ac9c5d9e"
+source = "git+https://github.com/wirelesseye/nestix-native.git#404eae41b9af624c2ac81db30f066c9adaf75476"
 dependencies = [
  "dpi",
  "nestix",
@@ -318,7 +318,7 @@ dependencies = [
 [[package]]
 name = "nestix-native-macros"
 version = "0.1.0"
-source = "git+https://github.com/wirelesseye/nestix-native.git#3a3c4671f27d3138b523984b8741a7b2ac9c5d9e"
+source = "git+https://github.com/wirelesseye/nestix-native.git#404eae41b9af624c2ac81db30f066c9adaf75476"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
@@ -345,7 +345,7 @@ dependencies = [
 [[package]]
 name = "nestix-signal"
 version = "0.1.0"
-source = "git+https://github.com/wirelesseye/nestix.git#c288d55adf0ad3d3aa62de52883540f821378d35"
+source = "git+https://github.com/wirelesseye/nestix.git#4c12b805008f290be1720e9a2911d186d0bc9ad3"
 dependencies = [
  "log",
 ]

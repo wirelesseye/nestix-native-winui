@@ -7,9 +7,27 @@ use nestix_native_core::{
     style_grow, style_justify_content, style_margin, style_padding,
     utils::{margin_to_taffy, padding_to_taffy},
 };
-use taffy::{Size, Style};
+use taffy::{NodeId, Size, Style};
 
 use crate::{WindowContext, contexts::ParentContext, xaml::XamlElement};
+
+fn apply_canvas_layout(
+    tree_context: &TreeContext,
+    parent_node: Option<NodeId>,
+    node_id: NodeId,
+    canvas: &XamlElement,
+) {
+    if parent_node.is_some()
+        && let Some(layout) = tree_context.layout(node_id)
+    {
+        let _ = canvas.set_layout(
+            layout.location.x.into(),
+            layout.location.y.into(),
+            layout.size.width.into(),
+            layout.size.height.into(),
+        );
+    }
+}
 
 #[component]
 pub fn FlexView(props: &FlexViewProps, element: &Element) -> Element {
@@ -220,16 +238,7 @@ pub fn FlexView(props: &FlexViewProps, element: &Element) -> Element {
     scoped_effect!(
         element,
         [tree_context, parent_context.parent_node, canvas] || {
-            if parent_node.is_some()
-                && let Some(layout) = tree_context.layout(node_id)
-            {
-                let _ = canvas.set_layout(
-                    layout.location.x.into(),
-                    layout.location.y.into(),
-                    layout.size.width.into(),
-                    layout.size.height.into(),
-                );
-            }
+            apply_canvas_layout(&tree_context, parent_node, node_id, &canvas);
         }
     );
 
@@ -284,6 +293,8 @@ pub fn FlexView(props: &FlexViewProps, element: &Element) -> Element {
 
 #[cfg(test)]
 mod tests {
+    use super::apply_canvas_layout;
+    use crate::xaml::XamlElement;
     use nestix_native_core::TreeContext;
     use taffy::{
         AlignItems, Dimension, FlexDirection, LengthPercentage, LengthPercentageAuto, Rect, Size,
@@ -354,5 +365,54 @@ mod tests {
             (growing_layout.size.width, growing_layout.size.height),
             (155.0, 20.0)
         );
+    }
+
+    #[test]
+    fn host_managed_root_does_not_apply_its_taffy_layout() {
+        let tree = TreeContext::new();
+        let root = tree.create_node(false);
+        tree.update_style(root, |prev| Style {
+            size: Size {
+                width: Dimension::from_length(320.0),
+                height: Dimension::from_length(240.0),
+            },
+            ..prev
+        });
+        tree.set_root_node(Some(root));
+        tree.refresh();
+
+        let canvas = XamlElement::canvas().unwrap();
+        apply_canvas_layout(&tree, None, root, &canvas);
+
+        assert_eq!(canvas.cached_layout(), None);
+    }
+
+    #[test]
+    fn nested_flex_view_applies_its_taffy_layout() {
+        let tree = TreeContext::new();
+        let parent = tree.create_node(false);
+        let child = tree.create_node(false);
+        tree.update_style(parent, |prev| Style {
+            size: Size {
+                width: Dimension::from_length(320.0),
+                height: Dimension::from_length(240.0),
+            },
+            ..prev
+        });
+        tree.update_style(child, |prev| Style {
+            size: Size {
+                width: Dimension::from_length(320.0),
+                height: Dimension::from_length(240.0),
+            },
+            ..prev
+        });
+        tree.add_child(parent, child);
+        tree.set_root_node(Some(parent));
+        tree.refresh();
+
+        let canvas = XamlElement::canvas().unwrap();
+        apply_canvas_layout(&tree, Some(parent), child, &canvas);
+
+        assert_eq!(canvas.cached_layout(), Some((0.0, 0.0, 320.0, 240.0)));
     }
 }
