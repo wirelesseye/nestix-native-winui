@@ -1,8 +1,7 @@
 use std::rc::Rc;
 
 use nestix::{
-    Element, callback, closure, component, components::ContextProvider, create_state, layout,
-    scoped_effect,
+    Element, Layout, callback, closure, component, components::ContextProvider, create_state, layout, scoped_effect,
 };
 use nestix_native_core::{
     StyleScope, TreeContext, WindowProps,
@@ -136,7 +135,7 @@ pub fn Window(props: &WindowProps, element: &Element) -> Element {
                             parent_node: None,
                         },
                     ) {
-                        $(props.children.get())
+                        $(props.children.clone().map(|element| Layout::from(element.clone())))
                     }
                 }
             }

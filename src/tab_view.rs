@@ -1,8 +1,7 @@
 use std::rc::Rc;
 
 use nestix::{
-    Element, State, callback, closure, component, components::ContextProvider, create_state,
-    layout, scoped_effect,
+    Element, Layout, State, callback, closure, component, components::ContextProvider, create_state, layout, scoped_effect,
 };
 use nestix_native_core::{
     Dimension as NativeDimension, StyleContext, StyleScope, TabViewItemProps, TabViewProps,
@@ -319,7 +318,7 @@ pub fn TabViewItem(props: &TabViewItemProps, element: &Element) -> Element {
                         parent_node: None,
                     },
                 ) {
-                    $(props.children.get())
+                    $(props.children.clone().map(|element| Layout::from(element.clone())))
                 }
             }
         }
