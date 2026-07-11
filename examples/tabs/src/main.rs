@@ -2,12 +2,12 @@ use std::rc::Rc;
 
 use env_logger::Env;
 use nestix::{
-    ContextProvider, Element, Shared, callback, component, computed, create_state, layout,
-    mount_root, props,
+    ContextProvider, Element, Shared, callback, component, computed, create_state, destructure,
+    layout, mount_root, props,
 };
 use nestix_native::{
     AlignItems, BackendContext, Button, Color, FlexDirection, FlexView, Input, RGBColor, Root,
-    StyleProvider, TabView, TabViewItem, Text, Window, default_backend, style,
+    ScrollView, StyleProvider, TabView, TabViewItem, Text, Window, default_backend, style,
 };
 use nestix_native_winui::WinUiBackend;
 
@@ -56,11 +56,9 @@ fn ExampleApp() -> Element {
         }
 
         .todo_item {
-            margin_bottom: 8px;
-        }
-
-        .todo_item > .__Button, .todo_item > .__Text, .todo_item > .__Input {
-            margin_right: 6px;
+            padding_horizontal: 10px;
+            padding_vertical: 8px;
+            gap: 6px;
         }
     };
 
@@ -191,15 +189,17 @@ fn TodoList() -> Element {
                 )
                 Button(.title = "Add", .on_click = add)
             }
-            FlexView(.view(.grow = 1.0)) {
-                for item in items where key = |item| item.0.clone() {
-                    TodoListItem(
-                        .data = item,
-                        .remove = remove.clone(),
-                        .move_up = move_up.clone(),
-                        .move_down = move_down.clone(),
-                        .set_content = set_content.clone(),
-                    )
+            ScrollView(.view(.grow = 1.0)) {
+                FlexView(.view(.grow = 1.0)) {
+                    for item in items where key = |item| item.0.clone() {
+                        TodoListItem(
+                            .data = item,
+                            .remove = remove.clone(),
+                            .move_up = move_up.clone(),
+                            .move_down = move_down.clone(),
+                            .set_content = set_content.clone(),
+                        )
+                    }
                 }
             }
         }
@@ -209,9 +209,15 @@ fn TodoList() -> Element {
 #[props]
 struct TodoListItemProps {
     data: (String, String),
+
+    // Use `raw` because we know these props will never be reactive
+    #[props(raw)]
     remove: Shared<dyn Fn(&str)>,
+    #[props(raw)]
     move_up: Shared<dyn Fn(&str)>,
+    #[props(raw)]
     move_down: Shared<dyn Fn(&str)>,
+    #[props(raw)]
     set_content: Shared<dyn Fn(&str, String)>,
 }
 
@@ -225,39 +231,38 @@ fn TodoListItem(props: &TodoListItemProps) -> Element {
         }
     );
 
-    let key = computed!([props.data] || data.get().0);
-    let value = computed!([props.data] || data.get().1);
+    destructure!((key, value) <- props.data);
 
     layout! {
         FlexView(.class = "todo_item", .flex_direction = FlexDirection::Row, .align_items = AlignItems::Center) {
+            if is_edit.get() {
+                Input(
+                    .value = value.clone(),
+                    .on_text_change = callback!([key, props.set_content] |value: &str| {
+                        set_content(&key.get(), value.to_string());
+                    }),
+                    .view(.grow = 1.0),
+                )
+            } else {
+                Text(value.clone(), .view(.grow = 1.0))
+            }
+
             Button(
                 .title = "Delete",
-                .on_click = callback!([key, props.remove] || (remove.get())(&key.get()))
+                .on_click = callback!([key, props.remove] || remove(&key.get()))
             )
             Button(
                 .title = "Up",
-                .on_click = callback!([key, props.move_up] || (move_up.get())(&key.get()))
+                .on_click = callback!([key, props.move_up] || move_up(&key.get()))
             )
             Button(
                 .title = "Down",
-                .on_click = callback!([key, props.move_down] || (move_down.get())(&key.get()))
+                .on_click = callback!([key, props.move_down] || move_down(&key.get()))
             )
             Button(
                 .title = "Edit",
                 .on_click = toggle_edit
             )
-
-            if is_edit.get() {
-                Input(
-                    .value = value.clone(),
-                    .on_text_change = callback!([key, props.set_content] |value: &str| {
-                        (set_content.get())(&key.get(), value.to_string());
-                    }),
-                    .view(.grow = 1.0),
-                )
-            } else {
-                Text(value.clone())
-            }
         }
     }
 }

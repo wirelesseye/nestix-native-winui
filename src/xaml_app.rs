@@ -18,7 +18,8 @@ use crate::{
     xaml::XamlElement,
 };
 
-use crate::bindings::Windows::Foundation::{IReference, PropertyValue};
+use crate::bindings::Windows::Foundation::PropertyValue;
+use windows_reference::IReference;
 
 const WINDOWS_APP_SDK_RELEASE_MAJORMINOR: u32 = 0x0001_0008;
 const WINDOWS_APP_SDK_MIN_VERSION: u64 = 0;

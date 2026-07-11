@@ -339,6 +339,7 @@ dependencies = [
  "windows-core",
  "windows-future",
  "windows-numerics",
+ "windows-reference",
  "windows-time",
 ]
 

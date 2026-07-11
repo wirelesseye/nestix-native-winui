@@ -20,6 +20,7 @@ windows-collections = { git = "https://github.com/microsoft/windows-rs.git", rev
 windows-core = { git = "https://github.com/microsoft/windows-rs.git", rev = "c166957" }
 windows-future = { git = "https://github.com/microsoft/windows-rs.git", rev = "c166957" }
 windows-numerics = { git = "https://github.com/microsoft/windows-rs.git", rev = "c166957" }
+windows-reference = { git = "https://github.com/microsoft/windows-rs.git", rev = "c166957" }
 windows-time = { git = "https://github.com/microsoft/windows-rs.git", rev = "c166957" }
 
 [build-dependencies]

@@ -7,8 +7,8 @@ use crate::{
     bindings::{
         Microsoft::UI::Xaml::{
             Controls::{
-                Button, Canvas, Grid, RowDefinition, SelectorBar, SelectorBarItem, TextBlock,
-                TextBox,
+                Button, Canvas, Grid, RowDefinition, ScrollView, ScrollingContentOrientation,
+                ScrollingScrollBarVisibility, SelectorBar, SelectorBarItem, TextBlock, TextBox,
             },
             FrameworkElement, GridLength, GridUnitType, HorizontalAlignment, UIElement,
             VerticalAlignment, Visibility, Window,
@@ -39,6 +39,7 @@ pub(crate) struct XamlNode {
 pub(crate) enum XamlKind {
     Window(WindowElement),
     Canvas(CanvasElement),
+    ScrollView(ScrollViewElement),
     Button(ButtonElement),
     TextBlock(TextBlockElement),
     TextBox(TextBoxElement),
@@ -62,6 +63,13 @@ pub(crate) struct WindowElement {
 pub(crate) struct CanvasElement {
     background_color: Option<nestix_native_core::Color>,
     realized: Option<Canvas>,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct ScrollViewElement {
+    scroll_x: bool,
+    scroll_y: bool,
+    realized: Option<ScrollView>,
 }
 
 #[derive(Debug, Clone)]
@@ -237,6 +245,14 @@ impl XamlElement {
         })))
     }
 
+    pub fn scroll_view() -> Result<Self> {
+        Ok(Self::new(XamlKind::ScrollView(ScrollViewElement {
+            scroll_x: false,
+            scroll_y: true,
+            realized: None,
+        })))
+    }
+
     pub fn button(title: String) -> Result<Self> {
         Ok(Self::new(XamlKind::Button(ButtonElement {
             title,
@@ -352,6 +368,11 @@ impl XamlElement {
                     }
                 }
             }
+            XamlKind::ScrollView(element) => {
+                if let Some(scroll_view) = &element.realized {
+                    scroll_view.SetContent(None)?;
+                }
+            }
             XamlKind::TabView(element) => {
                 if let Some(realized) = &element.realized {
                     let child_kind = child.0.kind.borrow();
@@ -432,7 +453,7 @@ impl XamlElement {
                     }
                     None
                 }
-                XamlKind::Canvas(_) | XamlKind::TabView(_) => None,
+                XamlKind::Canvas(_) | XamlKind::ScrollView(_) | XamlKind::TabView(_) => None,
             }
         };
 
@@ -590,6 +611,19 @@ impl XamlElement {
         Ok(())
     }
 
+    pub fn set_scroll_enabled(&self, scroll_x: bool, scroll_y: bool) -> Result<()> {
+        let mut kind = self.0.kind.borrow_mut();
+        let XamlKind::ScrollView(element) = &mut *kind else {
+            return Ok(());
+        };
+        element.scroll_x = scroll_x;
+        element.scroll_y = scroll_y;
+        if let Some(scroll_view) = &element.realized {
+            configure_scroll_view(scroll_view, scroll_x, scroll_y)?;
+        }
+        Ok(())
+    }
+
     fn apply_background_color(&self) -> Result<()> {
         let kind = self.0.kind.borrow();
         let XamlKind::Canvas(element) = &*kind else {
@@ -727,6 +761,7 @@ impl XamlElement {
         match &mut *self.0.kind.borrow_mut() {
             XamlKind::Window(element) => element.realize()?,
             XamlKind::Canvas(element) => element.realize()?,
+            XamlKind::ScrollView(element) => element.realize()?,
             XamlKind::Button(element) => element.realize()?,
             XamlKind::TextBlock(element) => element.realize()?,
             XamlKind::TextBox(element) => element.realize()?,
@@ -760,6 +795,7 @@ impl XamlElement {
         match &*self.0.kind.borrow() {
             XamlKind::Window(element) => element.realized.is_some(),
             XamlKind::Canvas(element) => element.realized.is_some(),
+            XamlKind::ScrollView(element) => element.realized.is_some(),
             XamlKind::Button(element) => element.realized.is_some(),
             XamlKind::TextBlock(element) => element.realized.is_some(),
             XamlKind::TextBox(element) => element.realized.is_some(),
@@ -792,6 +828,11 @@ impl XamlElement {
                         children.RemoveAt(existing_index)?;
                     }
                     children.InsertAt(index.min(children.Size()? as usize) as u32, &child)?;
+                }
+            }
+            XamlKind::ScrollView(element) => {
+                if let Some(scroll_view) = &element.realized {
+                    scroll_view.SetContent(&child)?;
                 }
             }
             XamlKind::TabView(element) => {
@@ -845,6 +886,7 @@ impl XamlElement {
         match &*self.0.kind.borrow() {
             XamlKind::Window(_) => Err(Error::new(E_NOTIMPL, "Window is not a UIElement.")),
             XamlKind::Canvas(element) => element.realized.as_ref().unwrap().cast(),
+            XamlKind::ScrollView(element) => element.realized.as_ref().unwrap().cast(),
             XamlKind::Button(element) => element.realized.as_ref().unwrap().control.cast(),
             XamlKind::TextBlock(element) => element.realized.as_ref().unwrap().cast(),
             XamlKind::TextBox(element) => element.realized.as_ref().unwrap().cast(),
@@ -997,6 +1039,35 @@ impl CanvasElement {
         self.realized = Some(Canvas::new()?);
         Ok(())
     }
+}
+
+impl ScrollViewElement {
+    fn realize(&mut self) -> Result<()> {
+        let scroll_view = ScrollView::new()?;
+        configure_scroll_view(&scroll_view, self.scroll_x, self.scroll_y)?;
+        self.realized = Some(scroll_view);
+        Ok(())
+    }
+}
+
+fn configure_scroll_view(scroll_view: &ScrollView, scroll_x: bool, scroll_y: bool) -> Result<()> {
+    let orientation = match (scroll_x, scroll_y) {
+        (true, true) => ScrollingContentOrientation::Both,
+        (true, false) => ScrollingContentOrientation::Horizontal,
+        (false, true) => ScrollingContentOrientation::Vertical,
+        (false, false) => ScrollingContentOrientation::None,
+    };
+    scroll_view.SetContentOrientation(orientation)?;
+    scroll_view.SetHorizontalScrollBarVisibility(if scroll_x {
+        ScrollingScrollBarVisibility::Auto
+    } else {
+        ScrollingScrollBarVisibility::Hidden
+    })?;
+    scroll_view.SetVerticalScrollBarVisibility(if scroll_y {
+        ScrollingScrollBarVisibility::Auto
+    } else {
+        ScrollingScrollBarVisibility::Hidden
+    })
 }
 
 impl ButtonElement {

@@ -4,6 +4,7 @@ mod contexts;
 pub mod flex_view;
 pub mod input;
 pub mod root;
+pub mod scroll_view;
 pub mod tab_view;
 pub mod text;
 pub mod window;
@@ -27,6 +28,7 @@ pub use button::*;
 pub use flex_view::*;
 pub use input::*;
 pub use root::*;
+pub use scroll_view::*;
 pub use tab_view::*;
 pub use text::*;
 pub use window::*;
@@ -54,6 +56,13 @@ impl Backend for WinUiBackend {
 
     fn create_input(&self, props: nestix_native_core::InputProps) -> Option<nestix::Element> {
         Some(create_element::<Input>(props))
+    }
+
+    fn create_scroll_view(
+        &self,
+        props: nestix_native_core::ScrollViewProps,
+    ) -> Option<nestix::Element> {
+        Some(create_element::<ScrollView>(props))
     }
 
     fn create_text(&self, props: nestix_native_core::TextProps) -> Option<nestix::Element> {
