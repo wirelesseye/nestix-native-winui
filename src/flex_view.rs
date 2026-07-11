@@ -4,8 +4,8 @@ use nestix::{
 use nestix_native_core::{
     Dimension, FlexViewProps, StyleContext, StyleScope, TreeContext, matched_style,
     style_align_items, style_align_self, style_dimension, style_flex_direction, style_flex_wrap,
-    style_grow, style_justify_content, style_margin, style_padding,
-    utils::{margin_to_taffy, padding_to_taffy},
+    style_gap, style_grow, style_justify_content, style_margin, style_padding,
+    utils::{gap_to_taffy, inset_to_taffy, margin_to_taffy, padding_to_taffy},
 };
 use taffy::{NodeId, Size, Style};
 
@@ -137,6 +137,32 @@ pub fn FlexView(props: &FlexViewProps, element: &Element) -> Element {
             window_context.scale_factor,
             tree_context,
             style_props,
+            props.view.left,
+            props.view.top
+        ] || {
+            let scale_factor = scale_factor.get();
+            let style_props = style_props.get();
+            let left =
+                style_dimension(style_props.as_ref(), left.get(), Dimension::Auto, |style| {
+                    style.left
+                });
+            let top = style_dimension(style_props.as_ref(), top.get(), Dimension::Auto, |style| {
+                style.top
+            });
+            tree_context.update_style(node_id, |prev| Style {
+                inset: inset_to_taffy(left, top, scale_factor),
+                ..prev
+            });
+            tree_context.refresh();
+        }
+    );
+
+    scoped_effect!(
+        element,
+        [
+            window_context.scale_factor,
+            tree_context,
+            style_props,
             props.view.margin()
         ] || {
             let scale_factor = scale_factor.get();
@@ -179,6 +205,28 @@ pub fn FlexView(props: &FlexViewProps, element: &Element) -> Element {
             let style_props = style_props.get();
             tree_context.update_style(node_id, |prev| Style {
                 align_self: style_align_self(style_props.as_ref(), align_self.get()).to_taffy(),
+                ..prev
+            });
+            tree_context.refresh();
+        }
+    );
+
+    scoped_effect!(
+        element,
+        [
+            window_context.scale_factor,
+            tree_context,
+            style_props,
+            props.gap
+        ] || {
+            let scale_factor = scale_factor.get();
+            let style_props = style_props.get();
+            let gap = gap_to_taffy(style_gap(style_props.as_ref(), gap.get()), scale_factor);
+            tree_context.update_style(node_id, |prev| Style {
+                gap: Size {
+                    width: gap,
+                    height: gap,
+                },
                 ..prev
             });
             tree_context.refresh();

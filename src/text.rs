@@ -1,7 +1,8 @@
 use nestix::{Element, callback, closure, component, create_state, scoped_effect};
 use nestix_native_core::{
     Dimension, StyleContext, TextProps, TreeContext, matched_style, style_align_self,
-    style_dimension, style_margin, utils::margin_to_taffy,
+    style_dimension, style_grow, style_margin,
+    utils::{inset_to_taffy, margin_to_taffy},
 };
 use taffy::{Size, Style, prelude::FromLength};
 
@@ -63,6 +64,18 @@ pub fn Text(props: &TextProps, element: &Element) {
 
     scoped_effect!(
         element,
+        [tree_context, style_props, props.view.grow] || {
+            let style_props = style_props.get();
+            tree_context.update_style(node_id, |prev| Style {
+                flex_grow: style_grow(style_props.as_ref(), grow.get()),
+                ..prev
+            });
+            tree_context.refresh();
+        }
+    );
+
+    scoped_effect!(
+        element,
         [
             window_context.scale_factor,
             tree_context,
@@ -100,6 +113,32 @@ pub fn Text(props: &TextProps, element: &Element) {
                     width: taffy::Dimension::from_length(width),
                     height: taffy::Dimension::from_length(height),
                 },
+                ..prev
+            });
+            tree_context.refresh();
+        }
+    );
+
+    scoped_effect!(
+        element,
+        [
+            window_context.scale_factor,
+            tree_context,
+            style_props,
+            props.view.left,
+            props.view.top
+        ] || {
+            let scale_factor = scale_factor.get();
+            let style_props = style_props.get();
+            let left =
+                style_dimension(style_props.as_ref(), left.get(), Dimension::Auto, |style| {
+                    style.left
+                });
+            let top = style_dimension(style_props.as_ref(), top.get(), Dimension::Auto, |style| {
+                style.top
+            });
+            tree_context.update_style(node_id, |prev| Style {
+                inset: inset_to_taffy(left, top, scale_factor),
                 ..prev
             });
             tree_context.refresh();
