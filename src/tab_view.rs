@@ -1,7 +1,8 @@
 use std::rc::Rc;
 
 use nestix::{
-    Element, Layout, State, callback, closure, component, components::ContextProvider, create_state, layout, scoped_effect,
+    Element, Layout, State, callback, closure, component, components::ContextProvider,
+    create_state, layout, scoped_effect,
 };
 use nestix_native_core::{
     Dimension as NativeDimension, StyleContext, StyleScope, TabViewItemProps, TabViewProps,
@@ -10,7 +11,11 @@ use nestix_native_core::{
 };
 use taffy::{Dimension, Size, Style, prelude::FromLength};
 
-use crate::{WindowContext, contexts::ParentContext, xaml::XamlElement};
+use crate::{
+    WindowContext,
+    contexts::ParentContext,
+    xaml::{TabViewElement, TabViewItemElement, XamlElement},
+};
 
 #[derive(Clone)]
 struct TabViewContext {
@@ -33,8 +38,8 @@ pub fn TabView(props: &TabViewProps, element: &Element) -> Element {
         &DEFAULT_CLASSES,
     );
 
-    let tab_view = XamlElement::tab_view().expect("failed to create WinUI SelectorBar tab view");
-    element.provide_handle(tab_view.clone());
+    let tab_view = TabViewElement::new().expect("failed to create WinUI SelectorBar tab view");
+    element.provide_handle(tab_view.erased());
     let node_id = tree_context.create_node(true);
 
     let tab_context = TabViewContext {
@@ -42,12 +47,12 @@ pub fn TabView(props: &TabViewProps, element: &Element) -> Element {
         content_size: create_state((0.0, 0.0)),
     };
     tab_view
-        .set_tab_selected(callback!([tab_context.current_selected] |id: String| {
+        .set_selected(callback!([tab_context.current_selected] |id: String| {
             current_selected.set(Some(id));
         }))
         .expect("failed to register SelectorBar selection handler");
     tab_view
-        .set_tab_content_resized(
+        .set_content_resized(
             callback!([tab_context.content_size] |width: f32, height: f32| {
                 content_size.set((width, height));
             }),
@@ -59,9 +64,9 @@ pub fn TabView(props: &TabViewProps, element: &Element) -> Element {
             if let Some(index) = placement.index
                 && let Some(insert_child) = &parent_context.insert_child
             {
-                insert_child(tab_view.clone(), Some(node_id), index);
+                insert_child(tab_view.erased(), Some(node_id), index);
             } else if let Some(add_child) = &parent_context.add_child {
-                add_child(tab_view.clone(), Some(node_id));
+                add_child(tab_view.erased(), Some(node_id));
             }
         }
     ));
@@ -232,18 +237,18 @@ pub fn TabViewItem(props: &TabViewItemProps, element: &Element) -> Element {
 
     let parent_context = element.context::<ParentContext>().unwrap();
     let tab_context = element.context::<TabViewContext>().unwrap();
-    let item = XamlElement::tab_view_item(props.id.get(), props.title.get())
+    let item = TabViewItemElement::new(props.id.get(), props.title.get())
         .expect("failed to create WinUI SelectorBarItem");
-    element.provide_handle(item.clone());
+    element.provide_handle(item.erased());
 
     element.on_place(closure!(
         [item, parent_context] | placement | {
             if let Some(index) = placement.index
                 && let Some(insert_child) = &parent_context.insert_child
             {
-                insert_child(item.clone(), None, index);
+                insert_child(item.erased(), None, index);
             } else if let Some(add_child) = &parent_context.add_child {
-                add_child(item.clone(), None);
+                add_child(item.erased(), None);
             }
         }
     ));
@@ -259,13 +264,13 @@ pub fn TabViewItem(props: &TabViewItemProps, element: &Element) -> Element {
     scoped_effect!(
         element,
         [item, props.id] || {
-            let _ = item.set_tab_item_id(id.get());
+            let _ = item.set_id(id.get());
         }
     );
     scoped_effect!(
         element,
         [item, props.title] || {
-            let _ = item.set_text(title.get());
+            let _ = item.set_title(title.get());
         }
     );
     scoped_effect!(

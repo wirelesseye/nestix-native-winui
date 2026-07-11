@@ -1,7 +1,8 @@
 use std::rc::Rc;
 
 use nestix::{
-    Element, Layout, callback, closure, component, components::ContextProvider, create_state, layout, scoped_effect,
+    Element, Layout, callback, closure, component, components::ContextProvider, create_state,
+    layout, scoped_effect,
 };
 use nestix_native_core::{
     StyleScope, TreeContext, WindowProps,
@@ -11,7 +12,7 @@ use taffy::{Dimension, Size, Style, prelude::FromLength};
 
 use crate::{
     contexts::{AppContext, ParentContext},
-    xaml::XamlElement,
+    xaml::{WindowElement, XamlElement},
 };
 
 #[derive(Clone)]
@@ -30,14 +31,14 @@ pub fn Window(props: &WindowProps, element: &Element) -> Element {
     });
     let tree_context = Rc::new(TreeContext::new());
 
-    let window = XamlElement::window(props.title.get()).expect("failed to create WinUI window");
-    let window_registration = app_context.app.register_window(window.clone());
+    let window = WindowElement::new(props.title.get()).expect("failed to create WinUI window");
+    let window_registration = app_context.app.register_window(window.erased());
     window
         .set_scale_factor_changed(Some(callback!([scale_factor] |value: f64| {
             scale_factor.set(value);
         })))
         .expect("failed to watch WinUI window scale factor");
-    element.provide_handle(window.clone());
+    element.provide_handle(window.erased());
 
     element.after_mount(closure!(
         [window] || {
@@ -48,7 +49,7 @@ pub fn Window(props: &WindowProps, element: &Element) -> Element {
     scoped_effect!(
         element,
         [window, props.title] || {
-            let _ = window.set_text(title.get());
+            let _ = window.set_title(title.get());
         }
     );
 
@@ -86,7 +87,7 @@ pub fn Window(props: &WindowProps, element: &Element) -> Element {
         ] || {
             let logical_size = LogicalSize::new(width.get(), height.get());
             let physical_size: PhysicalSize<i32> = logical_size.to_physical(scale_factor.get());
-            let _ = window.set_window_size(physical_size.width, physical_size.height);
+            let _ = window.set_size(physical_size.width, physical_size.height);
             if let Some(root_node) = tree_context.root_node() {
                 tree_context.update_style(root_node, |prev| Style {
                     size: Size {

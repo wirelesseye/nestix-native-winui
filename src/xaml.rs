@@ -36,19 +36,19 @@ pub(crate) struct XamlNode {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) enum XamlKind {
-    Window(WindowElement),
-    Canvas(CanvasElement),
-    ScrollView(ScrollViewElement),
-    Button(ButtonElement),
-    TextBlock(TextBlockElement),
-    TextBox(TextBoxElement),
-    TabView(TabViewElement),
-    TabViewItem(TabViewItemElement),
+enum XamlKind {
+    Window(WindowState),
+    Canvas(CanvasState),
+    ScrollView(ScrollViewState),
+    Button(ButtonState),
+    TextBlock(TextBlockState),
+    TextBox(TextBoxState),
+    TabView(TabViewState),
+    TabViewItem(TabViewItemState),
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct WindowElement {
+struct WindowState {
     title: String,
     width: i32,
     height: i32,
@@ -60,20 +60,20 @@ pub(crate) struct WindowElement {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct CanvasElement {
+struct CanvasState {
     background_color: Option<nestix_native_core::Color>,
     realized: Option<Canvas>,
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct ScrollViewElement {
+struct ScrollViewState {
     scroll_x: bool,
     scroll_y: bool,
     realized: Option<ScrollView>,
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct ButtonElement {
+struct ButtonState {
     title: String,
     on_click: Option<nestix::Shared<dyn Fn()>>,
     realized: Option<RealizedButton>,
@@ -81,13 +81,13 @@ pub(crate) struct ButtonElement {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct TextBlockElement {
+struct TextBlockState {
     text: String,
     realized: Option<TextBlock>,
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct TextBoxElement {
+struct TextBoxState {
     text: String,
     on_text_change: Option<Shared<dyn Fn(String)>>,
     realized: Option<TextBox>,
@@ -95,7 +95,7 @@ pub(crate) struct TextBoxElement {
 }
 
 #[derive(Clone)]
-pub(crate) struct TabViewElement {
+struct TabViewState {
     realized: Option<RealizedTabView>,
     selected_changed: Rc<RefCell<Option<Shared<dyn Fn(String)>>>>,
     content_resized: Rc<RefCell<Option<Shared<dyn Fn(f32, f32)>>>>,
@@ -103,7 +103,7 @@ pub(crate) struct TabViewElement {
     content_resize_handler: Rc<RefCell<Option<TabContentResizeHandlerState>>>,
 }
 
-impl std::fmt::Debug for TabViewElement {
+impl std::fmt::Debug for TabViewState {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter
             .debug_struct("TabViewElement")
@@ -113,7 +113,7 @@ impl std::fmt::Debug for TabViewElement {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct TabViewItemElement {
+struct TabViewItemState {
     id: String,
     title: String,
     realized: Option<RealizedTabViewItem>,
@@ -224,9 +224,154 @@ impl PartialEq for XamlElement {
 
 impl Eq for XamlElement {}
 
+/// Defines a typed façade over the erased element identity used by Nestix handles and
+/// parent/child contexts. Component code keeps the façade, so control-specific APIs
+/// cannot accidentally be invoked for the wrong XAML control.
+macro_rules! typed_element {
+    ($name:ident) => {
+        #[derive(Debug, Clone, PartialEq, Eq)]
+        pub(crate) struct $name(XamlElement);
+
+        impl $name {
+            pub(crate) fn erased(&self) -> XamlElement {
+                self.0.clone()
+            }
+        }
+
+        impl std::ops::Deref for $name {
+            type Target = XamlElement;
+
+            fn deref(&self) -> &Self::Target {
+                &self.0
+            }
+        }
+    };
+}
+
+typed_element!(WindowElement);
+typed_element!(CanvasElement);
+typed_element!(ScrollViewElement);
+typed_element!(ButtonElement);
+typed_element!(TextBlockElement);
+typed_element!(TextBoxElement);
+typed_element!(TabViewElement);
+typed_element!(TabViewItemElement);
+
+impl WindowElement {
+    pub(crate) fn new(title: String) -> Result<Self> {
+        XamlElement::window(title).map(Self)
+    }
+
+    pub(crate) fn activate(&self) -> Result<()> {
+        self.0.activate()
+    }
+    pub(crate) fn set_title(&self, title: String) -> Result<()> {
+        self.0.set_text(title)
+    }
+    pub(crate) fn set_size(&self, width: i32, height: i32) -> Result<()> {
+        self.0.set_window_size(width, height)
+    }
+    pub(crate) fn set_scale_factor_changed(
+        &self,
+        handler: Option<Shared<dyn Fn(f64)>>,
+    ) -> Result<()> {
+        self.0.set_scale_factor_changed(handler)
+    }
+    pub(crate) fn set_resized(
+        &self,
+        handler: Option<Shared<dyn Fn(nestix_native_core::dpi::Size)>>,
+    ) -> Result<()> {
+        self.0.set_resized(handler)
+    }
+}
+
+impl CanvasElement {
+    pub(crate) fn new() -> Result<Self> {
+        XamlElement::canvas().map(Self)
+    }
+    pub(crate) fn set_background_color(
+        &self,
+        color: Option<nestix_native_core::Color>,
+    ) -> Result<()> {
+        self.0.set_background_color(color)
+    }
+}
+
+impl ScrollViewElement {
+    pub(crate) fn new() -> Result<Self> {
+        XamlElement::scroll_view().map(Self)
+    }
+    pub(crate) fn set_scroll_enabled(&self, x: bool, y: bool) -> Result<()> {
+        self.0.set_scroll_enabled(x, y)
+    }
+}
+
+impl ButtonElement {
+    pub(crate) fn new(title: String) -> Result<Self> {
+        XamlElement::button(title).map(Self)
+    }
+    pub(crate) fn set_title(&self, title: String) -> Result<()> {
+        self.0.set_text(title)
+    }
+    pub(crate) fn set_on_click(&self, handler: Option<Shared<dyn Fn()>>) -> Result<()> {
+        self.0.set_button_click(handler)
+    }
+}
+
+impl TextBlockElement {
+    pub(crate) fn new(text: String) -> Result<Self> {
+        XamlElement::text_block(text).map(Self)
+    }
+    pub(crate) fn set_text(&self, text: String) -> Result<()> {
+        self.0.set_text(text)
+    }
+}
+
+impl TextBoxElement {
+    pub(crate) fn new(text: String) -> Result<Self> {
+        XamlElement::text_box(text).map(Self)
+    }
+    pub(crate) fn set_text(&self, text: String) -> Result<()> {
+        self.0.set_text(text)
+    }
+    pub(crate) fn set_on_text_changed(
+        &self,
+        handler: Option<Shared<dyn Fn(String)>>,
+    ) -> Result<()> {
+        self.0.set_text_changed(handler)
+    }
+}
+
+impl TabViewElement {
+    pub(crate) fn new() -> Result<Self> {
+        XamlElement::tab_view().map(Self)
+    }
+    pub(crate) fn set_selected(&self, handler: Shared<dyn Fn(String)>) -> Result<()> {
+        self.0.set_tab_selected(handler)
+    }
+    pub(crate) fn set_content_resized(&self, handler: Shared<dyn Fn(f32, f32)>) -> Result<()> {
+        self.0.set_tab_content_resized(handler)
+    }
+}
+
+impl TabViewItemElement {
+    pub(crate) fn new(id: String, title: String) -> Result<Self> {
+        XamlElement::tab_view_item(id, title).map(Self)
+    }
+    pub(crate) fn set_id(&self, id: String) -> Result<()> {
+        self.0.set_tab_item_id(id)
+    }
+    pub(crate) fn set_title(&self, title: String) -> Result<()> {
+        self.0.set_text(title)
+    }
+    pub(crate) fn set_visible(&self, visible: bool) -> Result<()> {
+        self.0.set_visible(visible)
+    }
+}
+
 impl XamlElement {
-    pub fn window(title: String) -> Result<Self> {
-        Ok(Self::new(XamlKind::Window(WindowElement {
+    fn window(title: String) -> Result<Self> {
+        Ok(Self::new(XamlKind::Window(WindowState {
             title,
             width: 200,
             height: 200,
@@ -238,23 +383,23 @@ impl XamlElement {
         })))
     }
 
-    pub fn canvas() -> Result<Self> {
-        Ok(Self::new(XamlKind::Canvas(CanvasElement {
+    fn canvas() -> Result<Self> {
+        Ok(Self::new(XamlKind::Canvas(CanvasState {
             background_color: None,
             realized: None,
         })))
     }
 
-    pub fn scroll_view() -> Result<Self> {
-        Ok(Self::new(XamlKind::ScrollView(ScrollViewElement {
+    fn scroll_view() -> Result<Self> {
+        Ok(Self::new(XamlKind::ScrollView(ScrollViewState {
             scroll_x: false,
             scroll_y: true,
             realized: None,
         })))
     }
 
-    pub fn button(title: String) -> Result<Self> {
-        Ok(Self::new(XamlKind::Button(ButtonElement {
+    fn button(title: String) -> Result<Self> {
+        Ok(Self::new(XamlKind::Button(ButtonState {
             title,
             on_click: None,
             realized: None,
@@ -262,15 +407,15 @@ impl XamlElement {
         })))
     }
 
-    pub fn text_block(text: String) -> Result<Self> {
-        Ok(Self::new(XamlKind::TextBlock(TextBlockElement {
+    fn text_block(text: String) -> Result<Self> {
+        Ok(Self::new(XamlKind::TextBlock(TextBlockState {
             text,
             realized: None,
         })))
     }
 
-    pub fn text_box(text: String) -> Result<Self> {
-        Ok(Self::new(XamlKind::TextBox(TextBoxElement {
+    fn text_box(text: String) -> Result<Self> {
+        Ok(Self::new(XamlKind::TextBox(TextBoxState {
             text,
             on_text_change: None,
             realized: None,
@@ -278,8 +423,8 @@ impl XamlElement {
         })))
     }
 
-    pub fn tab_view() -> Result<Self> {
-        Ok(Self::new(XamlKind::TabView(TabViewElement {
+    fn tab_view() -> Result<Self> {
+        Ok(Self::new(XamlKind::TabView(TabViewState {
             realized: None,
             selected_changed: Rc::new(RefCell::new(None)),
             content_resized: Rc::new(RefCell::new(None)),
@@ -288,8 +433,8 @@ impl XamlElement {
         })))
     }
 
-    pub fn tab_view_item(id: String, title: String) -> Result<Self> {
-        Ok(Self::new(XamlKind::TabViewItem(TabViewItemElement {
+    fn tab_view_item(id: String, title: String) -> Result<Self> {
+        Ok(Self::new(XamlKind::TabViewItem(TabViewItemState {
             id,
             title,
             realized: None,
@@ -464,7 +609,7 @@ impl XamlElement {
         Ok(())
     }
 
-    pub fn set_window_size(&self, width: i32, height: i32) -> Result<()> {
+    fn set_window_size(&self, width: i32, height: i32) -> Result<()> {
         match &mut *self.0.kind.borrow_mut() {
             XamlKind::Window(element) => {
                 element.width = width;
@@ -481,10 +626,7 @@ impl XamlElement {
         }
     }
 
-    pub fn set_scale_factor_changed(
-        &self,
-        handler: Option<nestix::Shared<dyn Fn(f64)>>,
-    ) -> Result<()> {
+    fn set_scale_factor_changed(&self, handler: Option<nestix::Shared<dyn Fn(f64)>>) -> Result<()> {
         let mut kind = self.0.kind.borrow_mut();
         let XamlKind::Window(element) = &mut *kind else {
             return Ok(());
@@ -501,7 +643,7 @@ impl XamlElement {
         Ok(())
     }
 
-    pub fn set_resized(
+    fn set_resized(
         &self,
         handler: Option<nestix::Shared<dyn Fn(nestix_native_core::dpi::Size)>>,
     ) -> Result<()> {
@@ -521,7 +663,7 @@ impl XamlElement {
         Ok(())
     }
 
-    pub fn set_button_click(&self, handler: Option<nestix::Shared<dyn Fn()>>) -> Result<()> {
+    fn set_button_click(&self, handler: Option<nestix::Shared<dyn Fn()>>) -> Result<()> {
         let mut kind = self.0.kind.borrow_mut();
         let XamlKind::Button(element) = &mut *kind else {
             return Ok(());
@@ -534,7 +676,7 @@ impl XamlElement {
         Ok(())
     }
 
-    pub fn set_text_changed(&self, handler: Option<Shared<dyn Fn(String)>>) -> Result<()> {
+    fn set_text_changed(&self, handler: Option<Shared<dyn Fn(String)>>) -> Result<()> {
         let mut kind = self.0.kind.borrow_mut();
         let XamlKind::TextBox(element) = &mut *kind else {
             return Ok(());
@@ -547,7 +689,7 @@ impl XamlElement {
         Ok(())
     }
 
-    pub fn set_tab_selected(&self, handler: Shared<dyn Fn(String)>) -> Result<()> {
+    fn set_tab_selected(&self, handler: Shared<dyn Fn(String)>) -> Result<()> {
         let mut kind = self.0.kind.borrow_mut();
         let XamlKind::TabView(element) = &mut *kind else {
             return Ok(());
@@ -559,7 +701,7 @@ impl XamlElement {
         Ok(())
     }
 
-    pub fn set_tab_content_resized(&self, handler: Shared<dyn Fn(f32, f32)>) -> Result<()> {
+    fn set_tab_content_resized(&self, handler: Shared<dyn Fn(f32, f32)>) -> Result<()> {
         let mut kind = self.0.kind.borrow_mut();
         let XamlKind::TabView(element) = &mut *kind else {
             return Ok(());
@@ -571,7 +713,7 @@ impl XamlElement {
         Ok(())
     }
 
-    pub fn set_visible(&self, visible: bool) -> Result<()> {
+    fn set_visible(&self, visible: bool) -> Result<()> {
         let kind = self.0.kind.borrow();
         let XamlKind::TabViewItem(element) = &*kind else {
             return Ok(());
@@ -586,7 +728,7 @@ impl XamlElement {
         Ok(())
     }
 
-    pub fn set_tab_item_id(&self, id: String) -> Result<()> {
+    fn set_tab_item_id(&self, id: String) -> Result<()> {
         let mut kind = self.0.kind.borrow_mut();
         let XamlKind::TabViewItem(element) = &mut *kind else {
             return Ok(());
@@ -598,7 +740,7 @@ impl XamlElement {
         Ok(())
     }
 
-    pub fn set_background_color(&self, color: Option<nestix_native_core::Color>) -> Result<()> {
+    fn set_background_color(&self, color: Option<nestix_native_core::Color>) -> Result<()> {
         let mut kind = self.0.kind.borrow_mut();
         let XamlKind::Canvas(element) = &mut *kind else {
             return Ok(());
@@ -611,7 +753,7 @@ impl XamlElement {
         Ok(())
     }
 
-    pub fn set_scroll_enabled(&self, scroll_x: bool, scroll_y: bool) -> Result<()> {
+    fn set_scroll_enabled(&self, scroll_x: bool, scroll_y: bool) -> Result<()> {
         let mut kind = self.0.kind.borrow_mut();
         let XamlKind::ScrollView(element) = &mut *kind else {
             return Ok(());
@@ -931,7 +1073,7 @@ impl XamlElement {
     }
 }
 
-impl WindowElement {
+impl WindowState {
     fn realize(&mut self) -> Result<()> {
         let window = Window::new()?;
         window.SetTitle(&HSTRING::from(&self.title))?;
@@ -1034,14 +1176,14 @@ impl WindowElement {
     }
 }
 
-impl CanvasElement {
+impl CanvasState {
     fn realize(&mut self) -> Result<()> {
         self.realized = Some(Canvas::new()?);
         Ok(())
     }
 }
 
-impl ScrollViewElement {
+impl ScrollViewState {
     fn realize(&mut self) -> Result<()> {
         let scroll_view = ScrollView::new()?;
         configure_scroll_view(&scroll_view, self.scroll_x, self.scroll_y)?;
@@ -1070,7 +1212,7 @@ fn configure_scroll_view(scroll_view: &ScrollView, scroll_x: bool, scroll_y: boo
     })
 }
 
-impl ButtonElement {
+impl ButtonState {
     fn realize(&mut self) -> Result<()> {
         let control = Button::new()?;
         let label = TextBlock::new()?;
@@ -1104,7 +1246,7 @@ impl ButtonElement {
     }
 }
 
-impl TextBlockElement {
+impl TextBlockState {
     fn realize(&mut self) -> Result<()> {
         let block = TextBlock::new()?;
         block.SetText(&HSTRING::from(&self.text))?;
@@ -1113,7 +1255,7 @@ impl TextBlockElement {
     }
 }
 
-impl TextBoxElement {
+impl TextBoxState {
     fn realize(&mut self) -> Result<()> {
         let text_box = TextBox::new()?;
         text_box.SetText(&HSTRING::from(&self.text))?;
@@ -1161,7 +1303,7 @@ pub(crate) struct TabContentResizeHandlerState {
     _revoker: EventRevoker,
 }
 
-impl TabViewElement {
+impl TabViewState {
     fn realize(&mut self) -> Result<()> {
         let control = Grid::new()?;
         let selector_bar = SelectorBar::new()?;
@@ -1243,7 +1385,7 @@ impl TabViewElement {
     }
 }
 
-impl TabViewItemElement {
+impl TabViewItemState {
     fn realize(&mut self) -> Result<()> {
         let selector_item = SelectorBarItem::new()?;
         selector_item.SetName(&HSTRING::from(&self.id))?;
@@ -1278,8 +1420,14 @@ fn set_canvas_background(canvas: &Canvas, color: Option<nestix_native_core::Colo
 
 #[cfg(test)]
 mod tests {
-    use super::{XamlElement, XamlKind};
+    use super::{CanvasElement, XamlElement, XamlKind};
     use nestix_native_core::TreeContext;
+
+    #[test]
+    fn typed_element_erases_without_changing_identity() {
+        let canvas = CanvasElement::new().unwrap();
+        assert_eq!(canvas.erased(), canvas.erased());
+    }
 
     #[test]
     fn child_operations_preserve_requested_order_before_realization() {
@@ -1372,12 +1520,13 @@ mod tests {
 
     #[test]
     fn background_color_is_cached_before_realization() {
-        let element = XamlElement::canvas().unwrap();
+        let element = CanvasElement::new().unwrap();
         element
             .set_background_color(Some(nestix_native_core::Color::RED))
             .unwrap();
 
-        let kind = element.0.kind.borrow();
+        let erased = element.erased();
+        let kind = erased.0.kind.borrow();
         let XamlKind::Canvas(canvas) = &*kind else {
             panic!("expected canvas");
         };

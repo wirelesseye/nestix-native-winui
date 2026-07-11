@@ -15,6 +15,8 @@ pub(crate) struct AppContext {
 }
 
 #[derive(Clone)]
+/// Carries the erased XAML identity used at composition boundaries. Individual
+/// components retain typed wrappers, so only parent/child plumbing is type-erased.
 pub(crate) struct ParentContext {
     pub add_child: Option<AddChild>,
     pub insert_child: Option<InsertChild>,

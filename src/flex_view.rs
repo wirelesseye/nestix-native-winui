@@ -9,13 +9,17 @@ use nestix_native_core::{
 };
 use taffy::{NodeId, Size, Style};
 
-use crate::{WindowContext, contexts::ParentContext, xaml::XamlElement};
+use crate::{
+    WindowContext,
+    contexts::ParentContext,
+    xaml::{CanvasElement, XamlElement},
+};
 
 fn apply_canvas_layout(
     tree_context: &TreeContext,
     parent_node: Option<NodeId>,
     node_id: NodeId,
-    canvas: &XamlElement,
+    canvas: &CanvasElement,
 ) {
     if parent_node.is_some()
         && let Some(layout) = tree_context.layout(node_id)
@@ -44,8 +48,8 @@ pub fn FlexView(props: &FlexViewProps, element: &Element) -> Element {
         &DEFAULT_CLASSES,
     );
 
-    let canvas = XamlElement::canvas().expect("failed to create WinUI Canvas");
-    element.provide_handle(canvas.clone());
+    let canvas = CanvasElement::new().expect("failed to create WinUI Canvas");
+    element.provide_handle(canvas.erased());
 
     let node_id = tree_context.create_node(false);
     element.on_place(closure!(
@@ -53,9 +57,9 @@ pub fn FlexView(props: &FlexViewProps, element: &Element) -> Element {
             if let Some(index) = placement.index
                 && let Some(insert_child) = &parent_context.insert_child
             {
-                insert_child(canvas.clone(), Some(node_id), index);
+                insert_child(canvas.erased(), Some(node_id), index);
             } else if let Some(add_child) = &parent_context.add_child {
-                add_child(canvas.clone(), Some(node_id));
+                add_child(canvas.erased(), Some(node_id));
             }
         }
     ));
@@ -342,7 +346,7 @@ pub fn FlexView(props: &FlexViewProps, element: &Element) -> Element {
 #[cfg(test)]
 mod tests {
     use super::apply_canvas_layout;
-    use crate::xaml::XamlElement;
+    use crate::xaml::CanvasElement;
     use nestix_native_core::TreeContext;
     use taffy::{
         AlignItems, Dimension, FlexDirection, LengthPercentage, LengthPercentageAuto, Rect, Size,
@@ -429,7 +433,7 @@ mod tests {
         tree.set_root_node(Some(root));
         tree.refresh();
 
-        let canvas = XamlElement::canvas().unwrap();
+        let canvas = CanvasElement::new().unwrap();
         apply_canvas_layout(&tree, None, root, &canvas);
 
         assert_eq!(canvas.cached_layout(), None);
@@ -458,7 +462,7 @@ mod tests {
         tree.set_root_node(Some(parent));
         tree.refresh();
 
-        let canvas = XamlElement::canvas().unwrap();
+        let canvas = CanvasElement::new().unwrap();
         apply_canvas_layout(&tree, Some(parent), child, &canvas);
 
         assert_eq!(canvas.cached_layout(), Some((0.0, 0.0, 320.0, 240.0)));

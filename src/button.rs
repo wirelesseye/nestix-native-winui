@@ -6,7 +6,7 @@ use nestix_native_core::{
 };
 use taffy::{Size, Style, prelude::FromLength};
 
-use crate::{WindowContext, contexts::ParentContext, xaml::XamlElement};
+use crate::{WindowContext, contexts::ParentContext, xaml::ButtonElement};
 
 #[component]
 pub fn Button(props: &ButtonProps, element: &Element) {
@@ -23,8 +23,8 @@ pub fn Button(props: &ButtonProps, element: &Element) {
         &DEFAULT_CLASSES,
     );
 
-    let button = XamlElement::button(props.title.get()).expect("failed to create WinUI Button");
-    element.provide_handle(button.clone());
+    let button = ButtonElement::new(props.title.get()).expect("failed to create WinUI Button");
+    element.provide_handle(button.erased());
 
     let node_id = tree_context.create_node(true);
     element.on_place(closure!(
@@ -32,9 +32,9 @@ pub fn Button(props: &ButtonProps, element: &Element) {
             if let Some(index) = placement.index
                 && let Some(insert_child) = &parent_context.insert_child
             {
-                insert_child(button.clone(), Some(node_id), index);
+                insert_child(button.erased(), Some(node_id), index);
             } else if let Some(add_child) = &parent_context.add_child {
-                add_child(button.clone(), Some(node_id));
+                add_child(button.erased(), Some(node_id));
             }
         }
     ));
@@ -42,7 +42,7 @@ pub fn Button(props: &ButtonProps, element: &Element) {
     element.on_unmount(closure!(
         [button, parent_context] || {
             if let Some(remove_child) = &parent_context.remove_child {
-                remove_child(&button, Some(node_id));
+                remove_child(&button.erased(), Some(node_id));
             }
         }
     ));
@@ -57,14 +57,14 @@ pub fn Button(props: &ButtonProps, element: &Element) {
     scoped_effect!(
         element,
         [button, props.title] || {
-            let _ = button.set_text(title.get());
+            let _ = button.set_title(title.get());
         }
     );
 
     scoped_effect!(
         element,
         [button, props.on_click] || {
-            let _ = button.set_button_click(on_click.get());
+            let _ = button.set_on_click(on_click.get());
         }
     );
 

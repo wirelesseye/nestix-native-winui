@@ -6,7 +6,7 @@ use nestix_native_core::{
 };
 use taffy::{Size, Style, prelude::FromLength};
 
-use crate::{WindowContext, contexts::ParentContext, xaml::XamlElement};
+use crate::{WindowContext, contexts::ParentContext, xaml::TextBoxElement};
 
 #[component]
 pub fn Input(props: &InputProps, element: &Element) {
@@ -23,9 +23,8 @@ pub fn Input(props: &InputProps, element: &Element) {
         &DEFAULT_CLASSES,
     );
 
-    let text_box =
-        XamlElement::text_box(props.value.get()).expect("failed to create WinUI TextBox");
-    element.provide_handle(text_box.clone());
+    let text_box = TextBoxElement::new(props.value.get()).expect("failed to create WinUI TextBox");
+    element.provide_handle(text_box.erased());
 
     let node_id = tree_context.create_node(true);
     element.on_place(closure!(
@@ -33,9 +32,9 @@ pub fn Input(props: &InputProps, element: &Element) {
             if let Some(index) = placement.index
                 && let Some(insert_child) = &parent_context.insert_child
             {
-                insert_child(text_box.clone(), Some(node_id), index);
+                insert_child(text_box.erased(), Some(node_id), index);
             } else if let Some(add_child) = &parent_context.add_child {
-                add_child(text_box.clone(), Some(node_id));
+                add_child(text_box.erased(), Some(node_id));
             }
         }
     ));
@@ -65,7 +64,7 @@ pub fn Input(props: &InputProps, element: &Element) {
     scoped_effect!(
         element,
         [text_box, props.on_text_change] || {
-            let _ = text_box.set_text_changed(on_text_change.get().map(|on_text_change| {
+            let _ = text_box.set_on_text_changed(on_text_change.get().map(|on_text_change| {
                 callback!([on_text_change] |text: String| {
                     on_text_change(&text);
                 })
