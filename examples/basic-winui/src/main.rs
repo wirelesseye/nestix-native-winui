@@ -6,7 +6,7 @@ use nestix_native::{
     AlignItems, BackendContext, Button, Color, FlexDirection, FlexView, RGBColor, Root,
     StyleProvider, Text, Window, default_backend, style,
 };
-use nestix_native_winui::{WINUI_BACKEND};
+use nestix_native_winui::WINUI_BACKEND;
 
 fn main() {
     env_logger::Builder::from_env(Env::default().default_filter_or("warn")).init();
