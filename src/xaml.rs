@@ -1,17 +1,22 @@
 use std::{cell::RefCell, rc::Rc};
 
 use nestix::Shared;
+use windows::Storage::Streams::{
+    DataWriter, IRandomAccessStream as NativeRandomAccessStream, InMemoryRandomAccessStream,
+};
 use windows_core::{Error, EventRevoker, HRESULT, HSTRING, Interface, Result};
 
 use crate::{
     bindings::{
         Microsoft::UI::Xaml::{
             Controls::{
-                Button, Canvas, Grid, RowDefinition, ScrollView, ScrollingContentOrientation,
-                ScrollingScrollBarVisibility, SelectorBar, SelectorBarItem, TextBlock, TextBox,
+                Button, Canvas, Grid, Image, RowDefinition, ScrollView,
+                ScrollingContentOrientation, ScrollingScrollBarVisibility, SelectorBar,
+                SelectorBarItem, TextBlock, TextBox,
             },
-            FrameworkElement, GridLength, GridUnitType, HorizontalAlignment, UIElement,
-            VerticalAlignment, Visibility, Window,
+            FrameworkElement, GridLength, GridUnitType, HorizontalAlignment,
+            Media::{Imaging::BitmapImage, Stretch},
+            UIElement, VerticalAlignment, Visibility, Window,
         },
         Windows::Foundation::Size,
         Windows::Graphics::SizeInt32,
@@ -26,6 +31,7 @@ use crate::{
 };
 
 const E_NOTIMPL: HRESULT = HRESULT(0x80004001u32 as i32);
+const E_FAIL: HRESULT = HRESULT(0x80004005u32 as i32);
 const BUTTON_INTRINSIC_SLACK: f32 = 2.0;
 
 pub(crate) struct XamlNode {
@@ -43,6 +49,7 @@ enum XamlKind {
     Button(ButtonState),
     TextBlock(TextBlockState),
     TextBox(TextBoxState),
+    Image(ImageState),
     TabView(TabViewState),
     TabViewItem(TabViewItemState),
 }
@@ -92,6 +99,29 @@ struct TextBoxState {
     on_text_change: Option<Shared<dyn Fn(String)>>,
     realized: Option<TextBox>,
     text_changed_handler: Rc<RefCell<Option<TextChangedHandlerState>>>,
+}
+
+#[derive(Debug, Clone)]
+struct ImageState {
+    source: Option<nestix_native_core::ImageSource>,
+    content_fit: nestix_native_core::ContentFit,
+    realized: Option<Image>,
+    stream: Option<InMemoryRandomAccessStream>,
+    opened_callback: Option<Shared<dyn Fn(f32, f32)>>,
+    opened_handler: Rc<RefCell<Option<ImageOpenedHandlerState>>>,
+}
+
+struct ImageOpenedHandlerState {
+    _callback: RegisteredContentSizeCallback,
+    _revoker: EventRevoker,
+}
+
+impl std::fmt::Debug for ImageOpenedHandlerState {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("ImageOpenedHandlerState")
+            .finish_non_exhaustive()
+    }
 }
 
 #[derive(Clone)]
@@ -254,6 +284,7 @@ typed_element!(ScrollViewElement);
 typed_element!(ButtonElement);
 typed_element!(TextBlockElement);
 typed_element!(TextBoxElement);
+typed_element!(ImageElement);
 typed_element!(TabViewElement);
 typed_element!(TabViewItemElement);
 
@@ -342,6 +373,29 @@ impl TextBoxElement {
     }
 }
 
+impl ImageElement {
+    pub(crate) fn new() -> Result<Self> {
+        XamlElement::image().map(Self)
+    }
+    pub(crate) fn set_source(&self, source: nestix_native_core::ImageSource) -> Result<()> {
+        self.0.set_image_source(source)
+    }
+    pub(crate) fn set_content_fit(&self, fit: nestix_native_core::ContentFit) -> Result<()> {
+        self.0.set_image_content_fit(fit)
+    }
+    pub(crate) fn set_intrinsic_size_changed(
+        &self,
+        callback: Shared<dyn Fn(f32, f32)>,
+    ) -> Result<()> {
+        let mut kind = self.0.0.kind.borrow_mut();
+        let XamlKind::Image(image) = &mut *kind else {
+            return Ok(());
+        };
+        image.opened_callback = Some(callback);
+        Ok(())
+    }
+}
+
 impl TabViewElement {
     pub(crate) fn new() -> Result<Self> {
         XamlElement::tab_view().map(Self)
@@ -420,6 +474,17 @@ impl XamlElement {
             on_text_change: None,
             realized: None,
             text_changed_handler: Rc::new(RefCell::new(None)),
+        })))
+    }
+
+    fn image() -> Result<Self> {
+        Ok(Self::new(XamlKind::Image(ImageState {
+            source: None,
+            content_fit: nestix_native_core::ContentFit::Contain,
+            realized: None,
+            stream: None,
+            opened_callback: None,
+            opened_handler: Rc::new(RefCell::new(None)),
         })))
     }
 
@@ -551,7 +616,10 @@ impl XamlElement {
                     }
                 }
             }
-            XamlKind::Button(_) | XamlKind::TextBlock(_) | XamlKind::TextBox(_) => {}
+            XamlKind::Button(_)
+            | XamlKind::TextBlock(_)
+            | XamlKind::TextBox(_)
+            | XamlKind::Image(_) => {}
         }
         Ok(())
     }
@@ -598,7 +666,10 @@ impl XamlElement {
                     }
                     None
                 }
-                XamlKind::Canvas(_) | XamlKind::ScrollView(_) | XamlKind::TabView(_) => None,
+                XamlKind::Canvas(_)
+                | XamlKind::ScrollView(_)
+                | XamlKind::TabView(_)
+                | XamlKind::Image(_) => None,
             }
         };
 
@@ -766,6 +837,32 @@ impl XamlElement {
         Ok(())
     }
 
+    fn set_image_source(&self, source: nestix_native_core::ImageSource) -> Result<()> {
+        let mut kind = self.0.kind.borrow_mut();
+        let XamlKind::Image(element) = &mut *kind else {
+            return Ok(());
+        };
+        element.source = Some(source);
+        if element.realized.is_some() {
+            element.apply_source()?;
+        }
+        drop(kind);
+        self.measure_intrinsic()
+    }
+
+    fn set_image_content_fit(&self, fit: nestix_native_core::ContentFit) -> Result<()> {
+        let mut kind = self.0.kind.borrow_mut();
+        let XamlKind::Image(element) = &mut *kind else {
+            return Ok(());
+        };
+        element.content_fit = fit;
+        if let Some(image) = &element.realized {
+            image.SetStretch(stretch_for_fit(fit))?;
+        }
+        drop(kind);
+        self.apply_layout()
+    }
+
     fn apply_background_color(&self) -> Result<()> {
         let kind = self.0.kind.borrow();
         let XamlKind::Canvas(element) = &*kind else {
@@ -815,6 +912,25 @@ impl XamlElement {
         framework_element.SetHeight(layout.height)?;
         Canvas::SetLeft(&ui_element, layout.x)?;
         Canvas::SetTop(&ui_element, layout.y)?;
+
+        if let XamlKind::Image(element) = &*self.0.kind.borrow()
+            && element.content_fit == nestix_native_core::ContentFit::ScaleDown
+            && let Some(image) = &element.realized
+        {
+            image.SetStretch(Stretch::None)?;
+            image.Measure(Size {
+                Width: f32::INFINITY,
+                Height: f32::INFINITY,
+            })?;
+            let natural = image.DesiredSize()?;
+            image.SetStretch(
+                if layout.width >= natural.Width as f64 && layout.height >= natural.Height as f64 {
+                    Stretch::None
+                } else {
+                    Stretch::Uniform
+                },
+            )?;
+        }
 
         Ok(())
     }
@@ -878,6 +994,14 @@ impl XamlElement {
                     Height: desired.Height.max(min_height),
                 }
             }
+            XamlKind::Image(element) => {
+                let image = element.realized.as_ref().unwrap();
+                image.SetStretch(Stretch::None)?;
+                ui_element.Measure(available)?;
+                let desired = ui_element.DesiredSize()?;
+                image.SetStretch(stretch_for_fit(element.content_fit))?;
+                desired
+            }
             _ => {
                 ui_element.Measure(available)?;
                 ui_element.DesiredSize()?
@@ -907,6 +1031,7 @@ impl XamlElement {
             XamlKind::Button(element) => element.realize()?,
             XamlKind::TextBlock(element) => element.realize()?,
             XamlKind::TextBox(element) => element.realize()?,
+            XamlKind::Image(element) => element.realize()?,
             XamlKind::TabView(element) => element.realize()?,
             XamlKind::TabViewItem(element) => element.realize()?,
         }
@@ -941,6 +1066,7 @@ impl XamlElement {
             XamlKind::Button(element) => element.realized.is_some(),
             XamlKind::TextBlock(element) => element.realized.is_some(),
             XamlKind::TextBox(element) => element.realized.is_some(),
+            XamlKind::Image(element) => element.realized.is_some(),
             XamlKind::TabView(element) => element.realized.is_some(),
             XamlKind::TabViewItem(element) => element.realized.is_some(),
         }
@@ -1018,7 +1144,10 @@ impl XamlElement {
                     children.InsertAt(index.min(children.Size()? as usize) as u32, &child)?;
                 }
             }
-            XamlKind::Button(_) | XamlKind::TextBlock(_) | XamlKind::TextBox(_) => {}
+            XamlKind::Button(_)
+            | XamlKind::TextBlock(_)
+            | XamlKind::TextBox(_)
+            | XamlKind::Image(_) => {}
         }
         Ok(())
     }
@@ -1032,6 +1161,7 @@ impl XamlElement {
             XamlKind::Button(element) => element.realized.as_ref().unwrap().control.cast(),
             XamlKind::TextBlock(element) => element.realized.as_ref().unwrap().cast(),
             XamlKind::TextBox(element) => element.realized.as_ref().unwrap().cast(),
+            XamlKind::Image(element) => element.realized.as_ref().unwrap().cast(),
             XamlKind::TabView(element) => element.realized.as_ref().unwrap().control.cast(),
             XamlKind::TabViewItem(element) => element.realized.as_ref().unwrap().content.cast(),
         }
@@ -1180,6 +1310,83 @@ impl CanvasState {
     fn realize(&mut self) -> Result<()> {
         self.realized = Some(Canvas::new()?);
         Ok(())
+    }
+}
+
+impl ImageState {
+    fn realize(&mut self) -> Result<()> {
+        let image = Image::new()?;
+        image.SetStretch(stretch_for_fit(self.content_fit))?;
+        self.realized = Some(image);
+        self.apply_source()
+    }
+
+    fn apply_source(&mut self) -> Result<()> {
+        self.opened_handler.take();
+        let Some(image) = &self.realized else {
+            return Ok(());
+        };
+        let Some(source) = self.source.clone() else {
+            image.SetSource(None)?;
+            self.stream = None;
+            return Ok(());
+        };
+        let bytes = match source {
+            nestix_native_core::ImageSource::File(path) => {
+                std::fs::read(&path).map_err(|error| {
+                    Error::new(
+                        E_FAIL,
+                        format!("failed to read image {}: {error}", path.display()),
+                    )
+                })?
+            }
+            nestix_native_core::ImageSource::Bytes(bytes) => bytes.to_vec(),
+        };
+        let stream = InMemoryRandomAccessStream::new()?;
+        let writer = DataWriter::CreateDataWriter(&stream)?;
+        writer.WriteBytes(&bytes)?;
+        writer.StoreAsync()?.join()?;
+        writer.DetachStream()?;
+        stream.Seek(0)?;
+
+        let bitmap = BitmapImage::new()?;
+        if let Some(callback) = self.opened_callback.clone() {
+            callback(0.0, 0.0);
+            let callback = RegisteredContentSizeCallback::register(callback);
+            let callback_id = callback.id();
+            let opened_bitmap = bitmap.clone();
+            let revoker = bitmap.ImageOpened(move |_, _| {
+                let width = opened_bitmap.PixelWidth().unwrap_or_default().max(0) as f32;
+                let height = opened_bitmap.PixelHeight().unwrap_or_default().max(0) as f32;
+                RegisteredContentSizeCallback::invoke(callback_id, width, height);
+            })?;
+            self.opened_handler.replace(Some(ImageOpenedHandlerState {
+                _callback: callback,
+                _revoker: revoker,
+            }));
+        }
+        // WinUI metadata is generated locally while the stream implementation
+        // comes from windows-rs. They describe the same WinRT interface but are
+        // distinct Rust wrapper types, so transfer one owned interface reference.
+        let native_stream: NativeRandomAccessStream = stream.cast()?;
+        let raw_stream = native_stream.into_raw();
+        let xaml_stream = unsafe {
+            crate::bindings::Windows::Storage::Streams::IRandomAccessStream::from_raw(raw_stream)
+        };
+        bitmap.SetSource(&xaml_stream)?;
+        image.SetSource(&bitmap)?;
+        self.stream = Some(stream);
+        Ok(())
+    }
+}
+
+fn stretch_for_fit(fit: nestix_native_core::ContentFit) -> Stretch {
+    match fit {
+        nestix_native_core::ContentFit::Contain => Stretch::Uniform,
+        nestix_native_core::ContentFit::Cover => Stretch::UniformToFill,
+        nestix_native_core::ContentFit::Fill => Stretch::Fill,
+        nestix_native_core::ContentFit::None => Stretch::None,
+        nestix_native_core::ContentFit::ScaleDown => Stretch::Uniform,
     }
 }
 

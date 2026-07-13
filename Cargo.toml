@@ -15,6 +15,7 @@ windows = { git = "https://github.com/microsoft/windows-rs.git", rev = "c166957"
     "Win32_Foundation",
     "Win32_System_Com",
     "Win32_UI_HiDpi",
+    "Storage_Streams",
 ] }
 windows-collections = { git = "https://github.com/microsoft/windows-rs.git", rev = "c166957" }
 windows-core = { git = "https://github.com/microsoft/windows-rs.git", rev = "c166957" }
