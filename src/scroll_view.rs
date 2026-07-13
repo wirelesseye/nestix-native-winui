@@ -6,7 +6,7 @@ use nestix::{
 };
 use nestix_native_core::{
     Dimension, ScrollViewProps, StyleContext, StyleScope, TreeContext, matched_style,
-    style_align_self, style_dimension, style_grow, style_margin,
+    style_align_self, style_dimension, style_flex_grow, style_margin,
     utils::{inset_to_taffy, margin_to_taffy},
 };
 use taffy::{Size, Style, style_helpers::FromLength};
@@ -63,10 +63,10 @@ pub fn ScrollView(props: &ScrollViewProps, element: &Element) -> Element {
 
     scoped_effect!(
         element,
-        [tree_context, styles, props.view.grow, props.view.align_self] || {
+        [tree_context, styles, props.view.flex_grow, props.view.align_self] || {
             let style = styles.get();
             tree_context.update_style(node, |prev| Style {
-                flex_grow: style_grow(style.as_ref(), grow.get()),
+                flex_grow: style_flex_grow(style.as_ref(), flex_grow.get()),
                 align_self: style_align_self(style.as_ref(), align_self.get()).to_taffy(),
                 ..prev
             });

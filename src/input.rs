@@ -1,7 +1,7 @@
 use nestix::{Element, callback, closure, component, create_state, scoped_effect};
 use nestix_native_core::{
     Dimension, InputProps, StyleContext, TreeContext, matched_style, style_align_self,
-    style_dimension, style_grow, style_margin,
+    style_dimension, style_flex_grow, style_margin,
     utils::{inset_to_taffy, margin_to_taffy},
 };
 use taffy::{Size, Style, prelude::FromLength};
@@ -74,10 +74,10 @@ pub fn Input(props: &InputProps, element: &Element) {
 
     scoped_effect!(
         element,
-        [tree_context, style_props, props.view.grow] || {
+        [tree_context, style_props, props.view.flex_grow] || {
             let style_props = style_props.get();
             tree_context.update_style(node_id, |prev| Style {
-                flex_grow: style_grow(style_props.as_ref(), grow.get()),
+                flex_grow: style_flex_grow(style_props.as_ref(), flex_grow.get()),
                 ..prev
             });
             tree_context.refresh();

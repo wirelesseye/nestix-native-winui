@@ -1,5 +1,3 @@
-use std::rc::Rc;
-
 use env_logger::Env;
 use nestix::{
     ContextProvider, Element, Shared, callback, component, computed, create_state, destructure,
@@ -9,17 +7,17 @@ use nestix_native::{
     AlignItems, BackendContext, Button, Color, FlexDirection, FlexView, Input, RGBColor, Root,
     ScrollView, StyleProvider, TabView, TabViewItem, Text, Window, default_backend, style,
 };
-use nestix_native_winui::WinUiBackend;
+use nestix_native_winui::WINUI_BACKEND;
 
 fn main() {
     env_logger::Builder::from_env(Env::default().default_filter_or("warn")).init();
     let backend = if cfg!(target_os = "windows") {
-        Rc::new(WinUiBackend)
+        &WINUI_BACKEND
     } else {
         default_backend()
     };
     mount_root(&layout! {
-        ContextProvider<BackendContext>(BackendContext::new(backend)) {
+        ContextProvider<BackendContext>(BackendContext { backend }) {
             ExampleApp
         }
     });
@@ -70,8 +68,8 @@ fn ExampleApp() -> Element {
                     .width = 520,
                     .height = 420,
                 ) {
-                    FlexView(.class = "app", .view(.grow = 1.0)) {
-                        TabView(.view(.grow = 1.0)) {
+                    FlexView(.class = "app", .view(.flex_grow = 1.0)) {
+                        TabView(.view(.flex_grow = 1.0)) {
                             TabViewItem(
                                 .id = "counter",
                                 .title = "Counter",
@@ -183,14 +181,14 @@ fn TodoList() -> Element {
                 .align_items = AlignItems::Center,
             ) {
                 Input(
-                    .view(.grow = 1.0)
+                    .view(.flex_grow = 1.0)
                     .value = input_text,
                     .on_text_change = on_text_change,
                 )
                 Button(.title = "Add", .on_click = add)
             }
-            ScrollView(.view(.grow = 1.0)) {
-                FlexView(.view(.grow = 1.0)) {
+            ScrollView(.view(.flex_grow = 1.0)) {
+                FlexView(.view(.flex_grow = 1.0)) {
                     for item in items where key = |item| item.0.clone() {
                         TodoListItem(
                             .data = item,
@@ -241,10 +239,10 @@ fn TodoListItem(props: &TodoListItemProps) -> Element {
                     .on_text_change = callback!([key, props.set_content] |value: &str| {
                         set_content(&key.get(), value.to_string());
                     }),
-                    .view(.grow = 1.0),
+                    .view(.flex_grow = 1.0),
                 )
             } else {
-                Text(value.clone(), .view(.grow = 1.0))
+                Text(value.clone(), .view(.flex_grow = 1.0))
             }
 
             Button(

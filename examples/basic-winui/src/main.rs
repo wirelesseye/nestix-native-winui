@@ -1,5 +1,3 @@
-use std::rc::Rc;
-
 use env_logger::Env;
 use nestix::{
     ContextProvider, Element, callback, component, computed, create_state, layout, mount_root,
@@ -8,17 +6,17 @@ use nestix_native::{
     AlignItems, BackendContext, Button, Color, FlexDirection, FlexView, RGBColor, Root,
     StyleProvider, Text, Window, default_backend, style,
 };
-use nestix_native_winui::WinUiBackend;
+use nestix_native_winui::{WINUI_BACKEND};
 
 fn main() {
     env_logger::Builder::from_env(Env::default().default_filter_or("warn")).init();
     let backend = if cfg!(target_os = "windows") {
-        Rc::new(WinUiBackend)
+        &WINUI_BACKEND
     } else {
         default_backend()
     };
     mount_root(&layout! {
-        ContextProvider<BackendContext>(BackendContext::new(backend)) {
+        ContextProvider<BackendContext>(BackendContext { backend }) {
             ExampleApp
         }
     });
@@ -57,7 +55,7 @@ fn ExampleApp() -> Element {
                         println!("{:?}", size);
                     }),
                 ) {
-                    FlexView(.class = "surface", .view(.grow = 1.0)) {
+                    FlexView(.class = "surface", .view(.flex_grow = 1.0)) {
                         FlexView(.class = "panel stack", .align_items = AlignItems::Start) {
                             Text("Nestix native")
                             Text(computed!([count] || format!("Count: {}", count.get())))

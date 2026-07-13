@@ -36,9 +36,15 @@ pub use window::*;
 use nestix::create_element;
 use nestix_native_core::Backend;
 
+pub const WINUI_BACKEND: WinUiBackend = WinUiBackend;
+
 pub struct WinUiBackend;
 
 impl Backend for WinUiBackend {
+    fn backend_id(&self) -> &'static str {
+        "nestix-native-winui"
+    }
+
     fn create_root(&self, props: nestix_native_core::RootProps) -> Option<nestix::Element> {
         Some(create_element::<Root>(props))
     }
