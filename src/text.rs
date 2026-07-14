@@ -1,7 +1,8 @@
 use nestix::{Element, callback, closure, component, create_state, scoped_effect};
 use nestix_native_core::{
-    Dimension, StyleContext, TextProps, TreeContext, matched_style, style_align_self,
-    style_dimension, style_flex_basis, style_flex_grow, style_flex_shrink, style_margin,
+    Dimension, StyleContext, TextProps, TreeContext, matched_style, resolve_font_props,
+    style_align_self, style_dimension, style_flex_basis, style_flex_grow, style_flex_shrink,
+    style_margin,
     utils::{inset_to_taffy, margin_to_taffy},
 };
 use taffy::{Size, Style, prelude::FromLength};
@@ -59,6 +60,29 @@ pub fn Text(props: &TextProps, element: &Element) {
         element,
         [text_block, props.text] || {
             let _ = text_block.set_text(text.get());
+        }
+    );
+
+    scoped_effect!(
+        element,
+        [
+            text_block,
+            style_props,
+            props.font.font_family,
+            props.font.font_size,
+            props.font.font_weight,
+            props.font.font_style,
+            props.font.text_color
+        ] || {
+            let font = resolve_font_props(
+                style_props.get().as_ref(),
+                font_family.get(),
+                font_size.get(),
+                font_weight.get(),
+                font_style.get(),
+                text_color.get(),
+            );
+            let _ = text_block.set_font(font);
         }
     );
 

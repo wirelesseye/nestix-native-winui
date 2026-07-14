@@ -6,8 +6,8 @@ use nestix::{
 };
 use nestix_native_core::{
     Dimension as NativeDimension, StyleContext, StyleScope, TabViewItemProps, TabViewProps,
-    TreeContext, matched_style, style_align_self, style_dimension, style_flex_basis,
-    style_flex_grow, style_flex_shrink, style_margin,
+    TreeContext, matched_style, resolved_view_style, style_align_self, style_dimension,
+    style_flex_basis, style_flex_grow, style_flex_shrink, style_margin,
     utils::{inset_to_taffy, margin_to_taffy},
 };
 use taffy::{Dimension, Size, Style, prelude::FromLength};
@@ -38,6 +38,7 @@ pub fn TabView(props: &TabViewProps, element: &Element) -> Element {
         props.class.clone(),
         &DEFAULT_CLASSES,
     );
+    let effective_style = resolved_view_style(style_props.clone(), &props.view);
 
     let tab_view = TabViewElement::new().expect("failed to create WinUI SelectorBar tab view");
     element.provide_handle(tab_view.erased());
@@ -219,7 +220,11 @@ pub fn TabView(props: &TabViewProps, element: &Element) -> Element {
     );
 
     layout! {
-        StyleScope(.class = props.class.clone(), .default_classes = DEFAULT_CLASSES) {
+        StyleScope(
+            .class = props.class.clone(),
+            .default_classes = DEFAULT_CLASSES,
+            .effective_style = effective_style
+        ) {
             ContextProvider<TabViewContext>(tab_context) {
                 ContextProvider<ParentContext>(
                     ParentContext {

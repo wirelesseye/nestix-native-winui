@@ -6,8 +6,8 @@ use nestix::{
 };
 use nestix_native_core::{
     Dimension, ScrollViewProps, StyleContext, StyleScope, TreeContext, matched_style,
-    style_align_self, style_dimension, style_flex_basis, style_flex_grow, style_flex_shrink,
-    style_margin,
+    resolved_view_style, style_align_self, style_dimension, style_flex_basis, style_flex_grow,
+    style_flex_shrink, style_margin,
     utils::{inset_to_taffy, margin_to_taffy},
 };
 use taffy::{Size, Style, style_helpers::FromLength};
@@ -31,6 +31,7 @@ pub fn ScrollView(props: &ScrollViewProps, element: &Element) -> Element {
         props.class.clone(),
         &DEFAULT_CLASSES,
     );
+    let effective_style = resolved_view_style(styles.clone(), &props.view);
     let scroll = ScrollViewElement::new().expect("failed to create WinUI ScrollView");
     element.provide_handle(scroll.erased());
     let node = tree_context.create_node(false);
@@ -148,7 +149,11 @@ pub fn ScrollView(props: &ScrollViewProps, element: &Element) -> Element {
     );
 
     layout! {
-        StyleScope(.class = props.class.clone(), .default_classes = DEFAULT_CLASSES) {
+        StyleScope(
+            .class = props.class.clone(),
+            .default_classes = DEFAULT_CLASSES,
+            .effective_style = effective_style
+        ) {
             ContextProvider<TreeContext>(subtree_context.clone()) {
                 ContextProvider<ParentContext>(ParentContext {
                     add_child: Some(callback!([scroll, subtree_context] |child: XamlElement, child_node: Option<taffy::NodeId>| {

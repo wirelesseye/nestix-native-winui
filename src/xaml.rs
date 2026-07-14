@@ -1,6 +1,7 @@
 use std::{cell::RefCell, rc::Rc};
 
 use nestix::Shared;
+use nestix_native_core::{FontStyle, ResolvedFontProps};
 use windows::Storage::Streams::{
     DataWriter, IRandomAccessStream as NativeRandomAccessStream, InMemoryRandomAccessStream,
 };
@@ -15,12 +16,13 @@ use crate::{
                 SelectorBarItem, TextBlock, TextBox,
             },
             FrameworkElement, GridLength, GridUnitType, HorizontalAlignment,
-            Media::{Imaging::BitmapImage, Stretch},
+            Media::{FontFamily, Imaging::BitmapImage, Stretch},
             UIElement, VerticalAlignment, Visibility, Window,
         },
         Windows::Foundation::Size,
         Windows::Graphics::SizeInt32,
         Windows::UI::Color as UiColor,
+        Windows::UI::Text::{FontStyle as UiFontStyle, FontWeight as UiFontWeight},
     },
     xaml_app::is_xaml_running,
     xaml_events::{
@@ -82,6 +84,7 @@ struct ScrollViewState {
 #[derive(Debug, Clone)]
 struct ButtonState {
     title: String,
+    font: ResolvedFontProps,
     on_click: Option<nestix::Shared<dyn Fn()>>,
     realized: Option<RealizedButton>,
     click_handler: Rc<RefCell<Option<ClickHandlerState>>>,
@@ -90,6 +93,7 @@ struct ButtonState {
 #[derive(Debug, Clone)]
 struct TextBlockState {
     text: String,
+    font: ResolvedFontProps,
     realized: Option<TextBlock>,
 }
 
@@ -347,6 +351,9 @@ impl ButtonElement {
     pub(crate) fn set_on_click(&self, handler: Option<Shared<dyn Fn()>>) -> Result<()> {
         self.0.set_button_click(handler)
     }
+    pub(crate) fn set_font(&self, font: ResolvedFontProps) -> Result<()> {
+        self.0.set_font(font)
+    }
 }
 
 impl TextBlockElement {
@@ -355,6 +362,9 @@ impl TextBlockElement {
     }
     pub(crate) fn set_text(&self, text: String) -> Result<()> {
         self.0.set_text(text)
+    }
+    pub(crate) fn set_font(&self, font: ResolvedFontProps) -> Result<()> {
+        self.0.set_font(font)
     }
 }
 
@@ -455,6 +465,7 @@ impl XamlElement {
     fn button(title: String) -> Result<Self> {
         Ok(Self::new(XamlKind::Button(ButtonState {
             title,
+            font: ResolvedFontProps::default(),
             on_click: None,
             realized: None,
             click_handler: Rc::new(RefCell::new(None)),
@@ -464,6 +475,7 @@ impl XamlElement {
     fn text_block(text: String) -> Result<Self> {
         Ok(Self::new(XamlKind::TextBlock(TextBlockState {
             text,
+            font: ResolvedFontProps::default(),
             realized: None,
         })))
     }
@@ -678,6 +690,30 @@ impl XamlElement {
         }
         self.measure_intrinsic()?;
         Ok(())
+    }
+
+    pub fn set_font(&self, font: ResolvedFontProps) -> Result<()> {
+        match &mut *self.0.kind.borrow_mut() {
+            XamlKind::Button(element) => {
+                element.font = font.clone();
+                if let Some(realized) = &element.realized {
+                    apply_font(&realized.label, &font)?;
+                }
+            }
+            XamlKind::TextBlock(element) => {
+                element.font = font.clone();
+                if let Some(realized) = &element.realized {
+                    apply_font(realized, &font)?;
+                }
+            }
+            _ => {
+                return Err(Error::new(
+                    E_NOTIMPL,
+                    "element does not support font styling",
+                ));
+            }
+        }
+        self.measure_intrinsic_recursive()
     }
 
     fn set_window_size(&self, width: i32, height: i32) -> Result<()> {
@@ -1424,6 +1460,7 @@ impl ButtonState {
         let control = Button::new()?;
         let label = TextBlock::new()?;
         label.SetText(&HSTRING::from(&self.title))?;
+        apply_font(&label, &self.font)?;
         control.SetContent(&label)?;
         self.attach_click_handler(&control, self.on_click.clone())?;
         self.realized = Some(RealizedButton { control, label });
@@ -1457,9 +1494,55 @@ impl TextBlockState {
     fn realize(&mut self) -> Result<()> {
         let block = TextBlock::new()?;
         block.SetText(&HSTRING::from(&self.text))?;
+        apply_font(&block, &self.font)?;
         self.realized = Some(block);
         Ok(())
     }
+}
+
+fn apply_font(block: &TextBlock, font: &ResolvedFontProps) -> Result<()> {
+    if let Some(size) = font.font_size {
+        block.SetFontSize(size)?;
+    } else {
+        block.ClearValue(&TextBlock::FontSizeProperty()?)?;
+    }
+    if let Some(family) = &font.font_family {
+        let family = FontFamily::CreateInstanceWithName(&HSTRING::from(family))?;
+        block.SetFontFamily(&family)?;
+    } else {
+        block.ClearValue(&TextBlock::FontFamilyProperty()?)?;
+    }
+    if let Some(weight) = font.font_weight {
+        block.SetFontWeight(UiFontWeight {
+            Weight: weight.value(),
+        })?;
+    } else {
+        block.ClearValue(&TextBlock::FontWeightProperty()?)?;
+    }
+    if let Some(style) = font.font_style {
+        block.SetFontStyle(match style {
+            FontStyle::Normal => UiFontStyle::Normal,
+            FontStyle::Italic => UiFontStyle::Italic,
+        })?;
+    } else {
+        block.ClearValue(&TextBlock::FontStyleProperty()?)?;
+    }
+    if let Some(color) = font.text_color {
+        let rgb = color.into_rgb();
+        let brush =
+            crate::bindings::Microsoft::UI::Xaml::Media::SolidColorBrush::CreateInstanceWithColor(
+                UiColor {
+                    A: rgb.alpha,
+                    R: rgb.red,
+                    G: rgb.green,
+                    B: rgb.blue,
+                },
+            )?;
+        block.SetForeground(&brush)?;
+    } else {
+        block.ClearValue(&TextBlock::ForegroundProperty()?)?;
+    }
+    Ok(())
 }
 
 impl TextBoxState {

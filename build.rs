@@ -55,6 +55,7 @@ fn main() {
         "Microsoft.UI.Xaml.Application".to_string(),
         "Microsoft.UI.Xaml.ApplicationInitializationCallback".to_string(),
         "Microsoft.UI.Xaml.DependencyObject".to_string(),
+        "Microsoft.UI.Xaml.DependencyProperty".to_string(),
         "Microsoft.UI.Xaml.IApplicationOverrides".to_string(),
         "Microsoft.UI.Xaml.LaunchActivatedEventArgs".to_string(),
         "Microsoft.UI.Xaml.ResourceDictionary".to_string(),
@@ -88,6 +89,7 @@ fn main() {
         "Microsoft.UI.Xaml.Controls.TextChangedEventHandler".to_string(),
         "Microsoft.UI.Xaml.Controls.UIElementCollection".to_string(),
         "Microsoft.UI.Xaml.Media.Brush".to_string(),
+        "Microsoft.UI.Xaml.Media.FontFamily".to_string(),
         "Microsoft.UI.Xaml.Media.SolidColorBrush".to_string(),
         "Microsoft.UI.Xaml.Media.Stretch".to_string(),
         "Microsoft.UI.Xaml.Media.Imaging.BitmapImage".to_string(),
@@ -109,6 +111,8 @@ fn main() {
         "Windows.Foundation.TypedEventHandler".to_string(),
         "Windows.Graphics.SizeInt32".to_string(),
         "Windows.UI.Color".to_string(),
+        "Windows.UI.Text.FontStyle".to_string(),
+        "Windows.UI.Text.FontWeight".to_string(),
         "Windows.UI.Xaml.Interop.TypeName".to_string(),
     ]);
 
