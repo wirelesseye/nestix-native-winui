@@ -11,7 +11,7 @@ use crate::{
     bindings::{
         Microsoft::UI::Xaml::{
             Controls::{
-                Button, Canvas, Control, Grid, Image, RowDefinition, ScrollView,
+                Button, Canvas, Control, Grid, Image, MenuBar, RowDefinition, ScrollView,
                 ScrollingContentOrientation, ScrollingScrollBarVisibility, SelectorBar,
                 SelectorBarItem, TextBlock, TextBox,
             },
@@ -53,6 +53,7 @@ enum XamlKind {
     TextBlock(TextBlockState),
     TextBox(TextBoxState),
     Image(ImageState),
+    MenuBar(MenuBarState),
     TabView(TabViewState),
     TabViewItem(TabViewItemState),
 }
@@ -115,6 +116,22 @@ struct ImageState {
     stream: Option<InMemoryRandomAccessStream>,
     opened_callback: Option<Shared<dyn Fn(f32, f32)>>,
     opened_handler: Rc<RefCell<Option<ImageOpenedHandlerState>>>,
+}
+
+#[derive(Clone)]
+struct MenuBarState {
+    menu: Option<Rc<crate::menu::MenuData>>,
+    realized: Option<MenuBar>,
+}
+
+impl std::fmt::Debug for MenuBarState {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("MenuBarState")
+            .field("has_menu", &self.menu.is_some())
+            .field("realized", &self.realized)
+            .finish()
+    }
 }
 
 struct ImageOpenedHandlerState {
@@ -291,6 +308,7 @@ typed_element!(ButtonElement);
 typed_element!(TextBlockElement);
 typed_element!(TextBoxElement);
 typed_element!(ImageElement);
+typed_element!(MenuBarElement);
 typed_element!(TabViewElement);
 typed_element!(TabViewItemElement);
 
@@ -414,6 +432,16 @@ impl ImageElement {
     }
 }
 
+impl MenuBarElement {
+    pub(crate) fn new() -> Result<Self> {
+        XamlElement::menu_bar().map(Self)
+    }
+
+    pub(crate) fn set_menu(&self, menu: Option<Rc<crate::menu::MenuData>>) -> Result<()> {
+        self.0.set_menu_bar_menu(menu)
+    }
+}
+
 impl TabViewElement {
     pub(crate) fn new() -> Result<Self> {
         XamlElement::tab_view().map(Self)
@@ -506,6 +534,13 @@ impl XamlElement {
             stream: None,
             opened_callback: None,
             opened_handler: Rc::new(RefCell::new(None)),
+        })))
+    }
+
+    fn menu_bar() -> Result<Self> {
+        Ok(Self::new(XamlKind::MenuBar(MenuBarState {
+            menu: None,
+            realized: None,
         })))
     }
 
@@ -640,6 +675,7 @@ impl XamlElement {
             XamlKind::Button(_)
             | XamlKind::TextBlock(_)
             | XamlKind::TextBox(_)
+            | XamlKind::MenuBar(_)
             | XamlKind::Image(_) => {}
         }
         Ok(())
@@ -690,6 +726,7 @@ impl XamlElement {
                 XamlKind::Canvas(_)
                 | XamlKind::ScrollView(_)
                 | XamlKind::TabView(_)
+                | XamlKind::MenuBar(_)
                 | XamlKind::Image(_) => None,
             }
         };
@@ -1090,6 +1127,7 @@ impl XamlElement {
             XamlKind::TextBlock(element) => element.realize()?,
             XamlKind::TextBox(element) => element.realize()?,
             XamlKind::Image(element) => element.realize()?,
+            XamlKind::MenuBar(element) => element.realize()?,
             XamlKind::TabView(element) => element.realize()?,
             XamlKind::TabViewItem(element) => element.realize()?,
         }
@@ -1129,6 +1167,7 @@ impl XamlElement {
             XamlKind::TextBlock(element) => element.realized.is_some(),
             XamlKind::TextBox(element) => element.realized.is_some(),
             XamlKind::Image(element) => element.realized.is_some(),
+            XamlKind::MenuBar(element) => element.realized.is_some(),
             XamlKind::TabView(element) => element.realized.is_some(),
             XamlKind::TabViewItem(element) => element.realized.is_some(),
         }
@@ -1209,6 +1248,7 @@ impl XamlElement {
             XamlKind::Button(_)
             | XamlKind::TextBlock(_)
             | XamlKind::TextBox(_)
+            | XamlKind::MenuBar(_)
             | XamlKind::Image(_) => {}
         }
         Ok(())
@@ -1224,6 +1264,7 @@ impl XamlElement {
             XamlKind::TextBlock(element) => element.realized.as_ref().unwrap().cast(),
             XamlKind::TextBox(element) => element.realized.as_ref().unwrap().cast(),
             XamlKind::Image(element) => element.realized.as_ref().unwrap().cast(),
+            XamlKind::MenuBar(element) => element.realized.as_ref().unwrap().cast(),
             XamlKind::TabView(element) => element.realized.as_ref().unwrap().control.cast(),
             XamlKind::TabViewItem(element) => element.realized.as_ref().unwrap().content.cast(),
         }
@@ -1231,6 +1272,27 @@ impl XamlElement {
 
     pub(crate) fn as_framework_element(&self) -> Result<FrameworkElement> {
         self.as_ui_element()?.cast()
+    }
+
+    fn set_menu_bar_menu(&self, menu: Option<Rc<crate::menu::MenuData>>) -> Result<()> {
+        let mut kind = self.0.kind.borrow_mut();
+        let XamlKind::MenuBar(element) = &mut *kind else {
+            return Err(Error::new(E_NOTIMPL, "Element is not a MenuBar."));
+        };
+        if let (Some(previous), Some(control)) = (&element.menu, &element.realized) {
+            previous.detach_bar(control);
+        }
+        element.menu = menu;
+        if let (Some(menu), Some(control)) = (&element.menu, &element.realized) {
+            menu.attach_bar(control)?;
+        } else if let Some(control) = &element.realized {
+            let items = control.Items()?;
+            while items.Size()? > 0 {
+                items.RemoveAtEnd()?;
+            }
+        }
+        drop(kind);
+        self.measure_intrinsic()
     }
 
     pub(crate) fn set_context_menu(&self, menu: Option<Rc<crate::menu::MenuData>>) -> Result<()> {
@@ -1417,6 +1479,17 @@ impl WindowState {
 impl CanvasState {
     fn realize(&mut self) -> Result<()> {
         self.realized = Some(Canvas::new()?);
+        Ok(())
+    }
+}
+
+impl MenuBarState {
+    fn realize(&mut self) -> Result<()> {
+        let control = MenuBar::new()?;
+        if let Some(menu) = &self.menu {
+            menu.attach_bar(&control)?;
+        }
+        self.realized = Some(control);
         Ok(())
     }
 }

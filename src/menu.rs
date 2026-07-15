@@ -9,8 +9,12 @@ use nestix::{
 };
 use nestix_native_core::{
     CheckMenuItemProps, ContextMenuPosition, ContextMenuPresenter, ContextMenuProps,
-    ContextMenuRegistration, MenuItemProps, MenuProps, MenuSeparatorProps, RadioMenuItemProps,
-    Shortcut, ShortcutKey, ShortcutModifiers, SubmenuProps,
+    ContextMenuRegistration, MenuBarProps, MenuItemProps, MenuProps, MenuSeparatorProps,
+    RadioMenuItemProps, Shortcut, ShortcutKey, ShortcutModifiers, SubmenuProps, TreeContext,
+};
+use taffy::{
+    Size, Style,
+    prelude::{FromLength, FromPercent},
 };
 use windows::Win32::{
     Foundation::POINT, Graphics::Gdi::ScreenToClient, UI::WindowsAndMessaging::GetCursorPos,
@@ -22,6 +26,7 @@ use crate::{
     bindings::{
         Microsoft::UI::Xaml::{
             Controls::{
+                MenuBar as NativeMenuBar, MenuBarItem as NativeMenuBarItem,
                 MenuFlyout as NativeMenuFlyout, MenuFlyoutItem as NativeMenuFlyoutItem,
                 MenuFlyoutItemBase, MenuFlyoutSeparator as NativeMenuFlyoutSeparator,
                 MenuFlyoutSubItem as NativeMenuFlyoutSubItem,
@@ -29,11 +34,17 @@ use crate::{
                 RadioMenuFlyoutItem as NativeRadioMenuFlyoutItem,
                 ToggleMenuFlyoutItem as NativeToggleMenuFlyoutItem,
             },
-            FrameworkElement, UIElement, Visibility,
+            FrameworkElement,
+            Input::KeyboardAccelerator,
+            UIElement, Visibility,
         },
-        Windows::Foundation::Point,
+        Windows::{
+            Foundation::Point,
+            System::{VirtualKey, VirtualKeyModifiers},
+        },
     },
-    xaml::XamlElement,
+    contexts::ParentContext,
+    xaml::{MenuBarElement, XamlElement},
     xaml_app::is_xaml_running,
     xaml_events::RegisteredClickCallback,
 };
@@ -99,14 +110,28 @@ impl NativeEntry {
         }
     }
 
-    fn set_shortcut(&self, shortcut: Option<Shortcut>) -> Result<()> {
+    fn set_shortcut(&self, shortcut: Option<Shortcut>, enabled: bool, visible: bool) -> Result<()> {
         let text = HSTRING::from(shortcut.map(shortcut_text).unwrap_or_default());
         match self {
             Self::Item(item) => item.SetKeyboardAcceleratorTextOverride(&text),
             Self::Check(item) => item.SetKeyboardAcceleratorTextOverride(&text),
             Self::Radio(item) => item.SetKeyboardAcceleratorTextOverride(&text),
             Self::Separator(_) | Self::Submenu(_) => Ok(()),
-        }
+        }?;
+
+        let (Self::Item(_) | Self::Check(_) | Self::Radio(_)) = self else {
+            return Ok(());
+        };
+        let accelerators = self.base()?.KeyboardAccelerators()?;
+        accelerators.Clear()?;
+        let Some(shortcut) = shortcut else {
+            return Ok(());
+        };
+        let accelerator = KeyboardAccelerator::new()?;
+        accelerator.SetKey(shortcut_virtual_key(shortcut.key()))?;
+        accelerator.SetModifiers(shortcut_virtual_modifiers(shortcut.modifiers()))?;
+        accelerator.SetIsEnabled(enabled && visible)?;
+        accelerators.Append(&accelerator)
     }
 }
 
@@ -133,6 +158,7 @@ struct Entry {
     group: RefCell<Option<String>>,
     action: Shared<dyn Fn()>,
     realized: RefCell<Option<RealizedEntry>>,
+    bar_item: RefCell<Option<NativeMenuBarItem>>,
 }
 
 impl Entry {
@@ -185,6 +211,15 @@ impl Entry {
     }
 
     fn update(&self) -> Result<()> {
+        if let Some(item) = self.bar_item.borrow().as_ref() {
+            item.SetTitle(&HSTRING::from(self.label.borrow().as_str()))?;
+            item.SetIsEnabled(self.enabled.get())?;
+            item.SetVisibility(if self.visible.get() {
+                Visibility::Visible
+            } else {
+                Visibility::Collapsed
+            })?;
+        }
         let realized = self.realized.borrow();
         let Some(realized) = realized.as_ref() else {
             return Ok(());
@@ -192,7 +227,11 @@ impl Entry {
         realized.native.set_label(&self.label.borrow())?;
         realized.native.set_enabled(self.enabled.get())?;
         realized.native.set_visible(self.visible.get())?;
-        realized.native.set_shortcut(self.shortcut.get())?;
+        realized.native.set_shortcut(
+            self.shortcut.get(),
+            self.enabled.get(),
+            self.visible.get(),
+        )?;
         match &realized.native {
             NativeEntry::Check(item) => item.SetIsChecked(self.checked.get())?,
             NativeEntry::Radio(item) => {
@@ -227,6 +266,20 @@ impl Entry {
             })
             .unwrap_or(self.checked.get())
     }
+
+    fn menu_bar_item(&self) -> Result<Option<NativeMenuBarItem>> {
+        let EntryKind::Submenu(menu) = &self.kind else {
+            return Ok(None);
+        };
+        if self.bar_item.borrow().is_none() {
+            self.bar_item.replace(Some(NativeMenuBarItem::new()?));
+        }
+        let item = self.bar_item.borrow().as_ref().unwrap().clone();
+        menu.bar_host.replace(Some(item.clone()));
+        menu.rebuild_bar_host()?;
+        self.update()?;
+        Ok(Some(item))
+    }
 }
 
 enum NativeMenu {
@@ -238,6 +291,8 @@ pub(crate) struct MenuData {
     root: bool,
     native: RefCell<Option<NativeMenu>>,
     entries: RefCell<Vec<Rc<Entry>>>,
+    bar: RefCell<Option<NativeMenuBar>>,
+    bar_host: RefCell<Option<NativeMenuBarItem>>,
 }
 
 impl PartialEq for MenuData {
@@ -252,6 +307,8 @@ impl MenuData {
             root,
             native: RefCell::new(None),
             entries: RefCell::new(Vec::new()),
+            bar: RefCell::new(None),
+            bar_host: RefCell::new(None),
         })
     }
 
@@ -294,6 +351,12 @@ impl MenuData {
         if !is_xaml_running() {
             return Ok(());
         }
+        if self.bar.borrow().is_some() {
+            return self.rebuild_bar();
+        }
+        if self.bar_host.borrow().is_some() {
+            return self.rebuild_bar_host();
+        }
         let items = self.items()?;
         while items.Size()? > 0 {
             items.RemoveAtEnd()?;
@@ -302,6 +365,47 @@ impl MenuData {
             items.Append(&entry.native()?)?;
         }
         Ok(())
+    }
+
+    fn rebuild_bar(&self) -> Result<()> {
+        let Some(bar) = self.bar.borrow().as_ref().cloned() else {
+            return Ok(());
+        };
+        let items = bar.Items()?;
+        while items.Size()? > 0 {
+            items.RemoveAtEnd()?;
+        }
+        for entry in self.entries.borrow().iter() {
+            if let Some(item) = entry.menu_bar_item()? {
+                items.Append(&item)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn rebuild_bar_host(&self) -> Result<()> {
+        let Some(host) = self.bar_host.borrow().as_ref().cloned() else {
+            return Ok(());
+        };
+        let items = host.Items()?;
+        while items.Size()? > 0 {
+            items.RemoveAtEnd()?;
+        }
+        for entry in self.entries.borrow().iter() {
+            items.Append(&entry.native()?)?;
+        }
+        Ok(())
+    }
+
+    pub(crate) fn attach_bar(&self, bar: &NativeMenuBar) -> Result<()> {
+        self.bar.replace(Some(bar.clone()));
+        self.rebuild()
+    }
+
+    pub(crate) fn detach_bar(&self, bar: &NativeMenuBar) {
+        if self.bar.borrow().as_ref() == Some(bar) {
+            self.bar.take();
+        }
     }
 
     pub(crate) fn attach(&self, target: &FrameworkElement) -> Result<()> {
@@ -317,6 +421,27 @@ struct MenuContext(Rc<MenuData>);
 #[derive(Clone)]
 struct ContextMenuContext {
     menu: State<Option<Rc<MenuData>>>,
+}
+
+#[derive(Clone)]
+struct MenuBarContext {
+    menu: State<Option<Rc<MenuData>>>,
+}
+
+// A MenuBar is initially measured before its declarative Menu children have
+// been placed. WinUI reports an empty control as zero high, so retain a usable
+// control height until the populated bar supplies its intrinsic measurement.
+const MENU_BAR_FALLBACK_HEIGHT: f32 = 40.0;
+
+fn menu_bar_style(previous: Style, measured_height: f32) -> Style {
+    Style {
+        size: Size {
+            width: taffy::Dimension::from_percent(1.0),
+            height: taffy::Dimension::from_length(measured_height.max(MENU_BAR_FALLBACK_HEIGHT)),
+        },
+        flex_shrink: 0.0,
+        ..previous
+    }
 }
 
 fn place_entry(element: &Element, menu: Rc<MenuData>, entry: Rc<Entry>) {
@@ -371,13 +496,28 @@ fn entry(kind: EntryKind, action: Shared<dyn Fn()>) -> Rc<Entry> {
         group: RefCell::new(None),
         action,
         realized: RefCell::new(None),
+        bar_item: RefCell::new(None),
     })
 }
 
 #[component]
 pub fn Menu(props: &MenuProps, element: &Element) -> Element {
     let menu = MenuData::new(true);
-    if let Some(context) = element.context::<ContextMenuContext>() {
+    if let Some(context) = element.context::<MenuBarContext>() {
+        context.menu.set(Some(menu.clone()));
+        element.on_unmount(closure!(
+            [context, menu] || {
+                if context
+                    .menu
+                    .get()
+                    .as_ref()
+                    .is_some_and(|current| Rc::ptr_eq(current, &menu))
+                {
+                    context.menu.set(None);
+                }
+            }
+        ));
+    } else if let Some(context) = element.context::<ContextMenuContext>() {
         context.menu.set(Some(menu.clone()));
         element.on_unmount(closure!(
             [context, menu] || {
@@ -393,6 +533,83 @@ pub fn Menu(props: &MenuProps, element: &Element) -> Element {
         ));
     }
     layout! { ContextProvider<MenuContext>(MenuContext(menu)) { $(props.children.clone()) } }
+}
+
+#[component]
+pub fn MenuBar(props: &MenuBarProps, element: &Element) -> Element {
+    let menu = create_state(None::<Rc<MenuData>>);
+    let context = MenuBarContext { menu: menu.clone() };
+
+    if let (Some(parent), Some(tree)) = (
+        element.context::<ParentContext>(),
+        element.context::<TreeContext>(),
+    ) {
+        let control = MenuBarElement::new().expect("failed to create logical WinUI MenuBar");
+        element.provide_handle(control.erased());
+        let node_id = tree.create_node(true);
+
+        element.on_place(closure!(
+            [control, parent] | placement | {
+                if let Some(index) = placement.index
+                    && let Some(insert_child) = &parent.insert_child
+                {
+                    insert_child(control.erased(), Some(node_id), index);
+                } else if let Some(add_child) = &parent.add_child {
+                    add_child(control.erased(), Some(node_id));
+                }
+            }
+        ));
+        element.on_unmount(closure!(
+            [control, parent] || {
+                if let Some(remove_child) = &parent.remove_child {
+                    remove_child(&control.erased(), Some(node_id));
+                }
+            }
+        ));
+
+        let intrinsic_size = create_state((0.0f32, 0.0f32));
+        control
+            .set_measure_callback(callback!([intrinsic_size] |width: f32, height: f32| {
+                intrinsic_size.set((width, height));
+            }))
+            .expect("failed to register WinUI MenuBar measurement");
+
+        scoped_effect!(
+            element,
+            [control, menu] || {
+                let _ = control.set_menu(menu.get());
+            }
+        );
+        scoped_effect!(
+            element,
+            [tree, intrinsic_size] || {
+                let (_, height) = intrinsic_size.get();
+                tree.update_style(node_id, |previous| menu_bar_style(previous, height));
+                tree.refresh();
+            }
+        );
+        scoped_effect!(
+            element,
+            [tree, parent.parent_node, control] || {
+                if parent_node.is_some()
+                    && let Some(layout) = tree.layout(node_id)
+                {
+                    let _ = control.set_layout(
+                        layout.location.x.into(),
+                        layout.location.y.into(),
+                        layout.size.width.into(),
+                        layout.size.height.into(),
+                    );
+                }
+            }
+        );
+    }
+
+    layout! {
+        ContextProvider<MenuBarContext>(context) {
+            $(props.menu.clone().map(|menu| nestix::Layout::from(menu.clone())))
+        }
+    }
 }
 
 #[component]
@@ -684,6 +901,58 @@ pub fn ContextMenu(props: &ContextMenuProps, element: &Element) -> Element {
     }
 }
 
+fn shortcut_virtual_key(key: ShortcutKey) -> VirtualKey {
+    match key {
+        ShortcutKey::Character(value) if value.is_ascii_alphanumeric() => {
+            VirtualKey(value.to_ascii_uppercase() as i32)
+        }
+        ShortcutKey::Character(value) => VirtualKey(match value {
+            ' ' => 0x20,
+            ';' | ':' => 0xba,
+            '=' | '+' => 0xbb,
+            ',' | '<' => 0xbc,
+            '-' | '_' => 0xbd,
+            '.' | '>' => 0xbe,
+            '/' | '?' => 0xbf,
+            '`' | '~' => 0xc0,
+            '[' | '{' => 0xdb,
+            '\\' | '|' => 0xdc,
+            ']' | '}' => 0xdd,
+            '\'' | '"' => 0xde,
+            _ => value as i32,
+        }),
+        ShortcutKey::Backspace => VirtualKey::Back,
+        ShortcutKey::Delete => VirtualKey::Delete,
+        ShortcutKey::Down => VirtualKey::Down,
+        ShortcutKey::End => VirtualKey::End,
+        ShortcutKey::Enter => VirtualKey::Enter,
+        ShortcutKey::Escape => VirtualKey::Escape,
+        ShortcutKey::Home => VirtualKey::Home,
+        ShortcutKey::Insert => VirtualKey::Insert,
+        ShortcutKey::Left => VirtualKey::Left,
+        ShortcutKey::PageDown => VirtualKey::PageDown,
+        ShortcutKey::PageUp => VirtualKey::PageUp,
+        ShortcutKey::Right => VirtualKey::Right,
+        ShortcutKey::Tab => VirtualKey::Tab,
+        ShortcutKey::Up => VirtualKey::Up,
+        ShortcutKey::Function(number) => VirtualKey(VirtualKey::F1.0 + i32::from(number) - 1),
+    }
+}
+
+fn shortcut_virtual_modifiers(modifiers: ShortcutModifiers) -> VirtualKeyModifiers {
+    let mut native = VirtualKeyModifiers::None;
+    if modifiers.contains(ShortcutModifiers::PRIMARY) {
+        native |= VirtualKeyModifiers::Control;
+    }
+    if modifiers.contains(ShortcutModifiers::SHIFT) {
+        native |= VirtualKeyModifiers::Shift;
+    }
+    if modifiers.contains(ShortcutModifiers::ALT) {
+        native |= VirtualKeyModifiers::Menu;
+    }
+    native
+}
+
 fn shortcut_text(shortcut: Shortcut) -> String {
     let mut text = String::new();
     let modifiers = shortcut.modifiers();
@@ -719,8 +988,26 @@ fn shortcut_text(shortcut: Shortcut) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{MenuData, shortcut_text};
+    use super::{
+        MENU_BAR_FALLBACK_HEIGHT, MenuData, VirtualKey, VirtualKeyModifiers, menu_bar_style,
+        shortcut_text, shortcut_virtual_key, shortcut_virtual_modifiers,
+    };
     use nestix_native_core::{Shortcut, ShortcutKey, ShortcutModifiers};
+    use taffy::{
+        Style,
+        prelude::{FromLength, FromPercent},
+    };
+
+    #[test]
+    fn empty_menu_bar_retains_visible_layout_size() {
+        let style = menu_bar_style(Style::default(), 0.0);
+        assert_eq!(style.size.width, taffy::Dimension::from_percent(1.0));
+        assert_eq!(
+            style.size.height,
+            taffy::Dimension::from_length(MENU_BAR_FALLBACK_HEIGHT)
+        );
+        assert_eq!(style.flex_shrink, 0.0);
+    }
 
     #[test]
     fn menu_construction_is_deferred_until_xaml_is_running() {
@@ -738,5 +1025,27 @@ mod tests {
         )
         .unwrap();
         assert_eq!(shortcut_text(shortcut), "Ctrl+Shift+S");
+    }
+
+    #[test]
+    fn maps_shortcuts_to_winui_accelerators() {
+        let shortcut = Shortcut::new(
+            ShortcutKey::Character('s'),
+            ShortcutModifiers::PRIMARY | ShortcutModifiers::ALT,
+        )
+        .unwrap();
+        assert_eq!(shortcut_virtual_key(shortcut.key()), VirtualKey::S);
+        assert_eq!(
+            shortcut_virtual_modifiers(shortcut.modifiers()),
+            VirtualKeyModifiers::Control | VirtualKeyModifiers::Menu
+        );
+        assert_eq!(
+            shortcut_virtual_key(ShortcutKey::Function(24)),
+            VirtualKey::F24
+        );
+        assert_eq!(
+            shortcut_virtual_key(ShortcutKey::Character('?')),
+            VirtualKey(0xbf)
+        );
     }
 }
