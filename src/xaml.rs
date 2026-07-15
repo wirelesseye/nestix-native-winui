@@ -1,7 +1,7 @@
 use std::{cell::RefCell, rc::Rc};
 
 use nestix::Shared;
-use nestix_native_core::{FontStyle, ResolvedFontProps};
+use nestix_native_core::{FontStyle, Rect, ResolvedFontProps};
 use windows::Storage::Streams::{
     DataWriter, IRandomAccessStream as NativeRandomAccessStream, InMemoryRandomAccessStream,
 };
@@ -11,7 +11,7 @@ use crate::{
     bindings::{
         Microsoft::UI::Xaml::{
             Controls::{
-                Button, Canvas, Grid, Image, RowDefinition, ScrollView,
+                Button, Canvas, Control, Grid, Image, RowDefinition, ScrollView,
                 ScrollingContentOrientation, ScrollingScrollBarVisibility, SelectorBar,
                 SelectorBarItem, TextBlock, TextBox,
             },
@@ -85,6 +85,7 @@ struct ScrollViewState {
 struct ButtonState {
     title: String,
     font: ResolvedFontProps,
+    padding: Option<Rect<f64>>,
     on_click: Option<nestix::Shared<dyn Fn()>>,
     realized: Option<RealizedButton>,
     click_handler: Rc<RefCell<Option<ClickHandlerState>>>,
@@ -354,6 +355,9 @@ impl ButtonElement {
     pub(crate) fn set_font(&self, font: ResolvedFontProps) -> Result<()> {
         self.0.set_font(font)
     }
+    pub(crate) fn set_padding(&self, padding: Option<Rect<f64>>) -> Result<()> {
+        self.0.set_button_padding(padding)
+    }
 }
 
 impl TextBlockElement {
@@ -466,6 +470,7 @@ impl XamlElement {
         Ok(Self::new(XamlKind::Button(ButtonState {
             title,
             font: ResolvedFontProps::default(),
+            padding: None,
             on_click: None,
             realized: None,
             click_handler: Rc::new(RefCell::new(None)),
@@ -713,6 +718,19 @@ impl XamlElement {
                 ));
             }
         }
+        self.measure_intrinsic_recursive()
+    }
+
+    fn set_button_padding(&self, padding: Option<Rect<f64>>) -> Result<()> {
+        let mut kind = self.0.kind.borrow_mut();
+        let XamlKind::Button(element) = &mut *kind else {
+            return Err(Error::new(E_NOTIMPL, "element does not support padding"));
+        };
+        element.padding = padding;
+        if let Some(realized) = &element.realized {
+            apply_button_padding(&realized.control, padding)?;
+        }
+        drop(kind);
         self.measure_intrinsic_recursive()
     }
 
@@ -1461,6 +1479,7 @@ impl ButtonState {
         let label = TextBlock::new()?;
         label.SetText(&HSTRING::from(&self.title))?;
         apply_font(&label, &self.font)?;
+        apply_button_padding(&control, self.padding)?;
         control.SetContent(&label)?;
         self.attach_click_handler(&control, self.on_click.clone())?;
         self.realized = Some(RealizedButton { control, label });
@@ -1487,6 +1506,19 @@ impl ButtonState {
             _revoker: revoker,
         }));
         Ok(())
+    }
+}
+
+fn apply_button_padding(button: &Button, padding: Option<Rect<f64>>) -> Result<()> {
+    if let Some(padding) = padding {
+        button.SetPadding(crate::bindings::Microsoft::UI::Xaml::Thickness {
+            Left: padding.left,
+            Top: padding.top,
+            Right: padding.right,
+            Bottom: padding.bottom,
+        })
+    } else {
+        button.ClearValue(&Control::PaddingProperty()?)
     }
 }
 

@@ -200,7 +200,7 @@ pub fn FlexView(props: &FlexViewProps, element: &Element) -> Element {
             window_context.scale_factor,
             tree_context,
             style_props,
-            props.padding()
+            props.container.padding()
         ] || {
             let scale_factor = scale_factor.get();
             let style_props = style_props.get();

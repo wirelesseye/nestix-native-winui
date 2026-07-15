@@ -1,8 +1,8 @@
 use nestix::{Element, callback, closure, component, create_state, scoped_effect};
 use nestix_native_core::{
-    ButtonProps, Dimension, StyleContext, TreeContext, matched_style, resolve_font_props,
+    ButtonProps, Dimension, Rect, StyleContext, TreeContext, matched_style, resolve_font_props,
     style_align_self, style_dimension, style_flex_basis, style_flex_grow, style_flex_shrink,
-    style_margin,
+    style_margin, style_padding_with_default,
     utils::{inset_to_taffy, margin_to_taffy},
 };
 use taffy::{Size, Style, prelude::FromLength};
@@ -89,6 +89,23 @@ pub fn Button(props: &ButtonProps, element: &Element) {
         element,
         [button, props.on_click] || {
             let _ = button.set_on_click(on_click.get());
+        }
+    );
+
+    scoped_effect!(
+        element,
+        [
+            button,
+            window_context.scale_factor,
+            style_props,
+            props.container.padding()
+        ] || {
+            let padding = style_padding_with_default(
+                style_props.get().as_ref(),
+                padding.get(),
+                Dimension::Auto,
+            );
+            let _ = button.set_padding(logical_padding(padding, scale_factor.get()));
         }
     );
 
@@ -233,4 +250,67 @@ pub fn Button(props: &ButtonProps, element: &Element) {
             }
         }
     );
+}
+
+fn logical_padding(padding: Rect<Dimension>, scale_factor: f64) -> Option<Rect<f64>> {
+    if [padding.top, padding.bottom, padding.left, padding.right]
+        .into_iter()
+        .all(|dimension| dimension.is_auto())
+    {
+        return None;
+    }
+
+    let logical = |dimension| match dimension {
+        Dimension::Auto => 0.0,
+        Dimension::Length(value) => value.to_logical::<f64>(scale_factor).0,
+    };
+    Some(Rect {
+        top: logical(padding.top),
+        bottom: logical(padding.bottom),
+        left: logical(padding.left),
+        right: logical(padding.right),
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::logical_padding;
+    use nestix_native_core::{Dimension, Rect};
+
+    #[test]
+    fn all_auto_padding_preserves_the_native_button_default() {
+        assert_eq!(
+            logical_padding(
+                Rect {
+                    top: Dimension::Auto,
+                    bottom: Dimension::Auto,
+                    left: Dimension::Auto,
+                    right: Dimension::Auto,
+                },
+                1.0,
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn explicit_padding_maps_remaining_auto_sides_to_zero() {
+        assert_eq!(
+            logical_padding(
+                Rect {
+                    top: Dimension::Auto,
+                    bottom: Dimension::Auto,
+                    left: Dimension::from(12),
+                    right: Dimension::Auto,
+                },
+                1.0,
+            ),
+            Some(Rect {
+                top: 0.0,
+                bottom: 0.0,
+                left: 12.0,
+                right: 0.0,
+            })
+        );
+    }
 }
