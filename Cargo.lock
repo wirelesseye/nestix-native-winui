@@ -96,6 +96,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1d07550c9036bf2ae0c684c4297d503f838287c83c53686d05370d0e139ae570"
 
 [[package]]
+name = "context-menu-example"
+version = "0.1.0"
+dependencies = [
+ "env_logger",
+ "nestix",
+ "nestix-native",
+ "nestix-native-winui",
+]
+
+[[package]]
 name = "convert_case"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -276,7 +286,7 @@ dependencies = [
 [[package]]
 name = "nestix"
 version = "0.1.0"
-source = "git+https://github.com/wirelesseye/nestix.git#a7d0df3b163aa19808e5c143128b3cc53e0af215"
+source = "git+https://github.com/wirelesseye/nestix.git#025b0325443f3040a8c12a409aca1e755ebe8ab9"
 dependencies = [
  "log",
  "nestix-macros",
@@ -286,7 +296,7 @@ dependencies = [
 [[package]]
 name = "nestix-macros"
 version = "0.1.0"
-source = "git+https://github.com/wirelesseye/nestix.git#a7d0df3b163aa19808e5c143128b3cc53e0af215"
+source = "git+https://github.com/wirelesseye/nestix.git#025b0325443f3040a8c12a409aca1e755ebe8ab9"
 dependencies = [
  "convert_case",
  "proc-macro-crate",
@@ -298,7 +308,7 @@ dependencies = [
 [[package]]
 name = "nestix-native"
 version = "0.1.0"
-source = "git+https://github.com/wirelesseye/nestix-native.git#6c73558eec5a3fabfa9322aee75b3d87c44d2ad3"
+source = "git+https://github.com/wirelesseye/nestix-native.git#e4e28252782fbc4f535c93b66c911740c32ec5b9"
 dependencies = [
  "nestix",
  "nestix-native-core",
@@ -307,7 +317,7 @@ dependencies = [
 [[package]]
 name = "nestix-native-core"
 version = "0.1.0"
-source = "git+https://github.com/wirelesseye/nestix-native.git#6c73558eec5a3fabfa9322aee75b3d87c44d2ad3"
+source = "git+https://github.com/wirelesseye/nestix-native.git#e4e28252782fbc4f535c93b66c911740c32ec5b9"
 dependencies = [
  "dpi",
  "nestix",
@@ -318,7 +328,7 @@ dependencies = [
 [[package]]
 name = "nestix-native-macros"
 version = "0.1.0"
-source = "git+https://github.com/wirelesseye/nestix-native.git#6c73558eec5a3fabfa9322aee75b3d87c44d2ad3"
+source = "git+https://github.com/wirelesseye/nestix-native.git#e4e28252782fbc4f535c93b66c911740c32ec5b9"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
@@ -346,7 +356,7 @@ dependencies = [
 [[package]]
 name = "nestix-signal"
 version = "0.1.0"
-source = "git+https://github.com/wirelesseye/nestix.git#a7d0df3b163aa19808e5c143128b3cc53e0af215"
+source = "git+https://github.com/wirelesseye/nestix.git#025b0325443f3040a8c12a409aca1e755ebe8ab9"
 dependencies = [
  "log",
 ]

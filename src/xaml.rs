@@ -41,6 +41,7 @@ pub(crate) struct XamlNode {
     children: RefCell<Vec<XamlElement>>,
     layout: RefCell<Option<XamlLayout>>,
     measure_callback: RefCell<Option<Shared<dyn Fn(f32, f32)>>>,
+    context_menu: RefCell<Option<Rc<crate::menu::MenuData>>>,
 }
 
 #[derive(Debug, Clone)]
@@ -318,6 +319,9 @@ impl WindowElement {
         handler: Option<Shared<dyn Fn(nestix_native_core::dpi::Size)>>,
     ) -> Result<()> {
         self.0.set_resized(handler)
+    }
+    pub(crate) fn hwnd(&self) -> Result<windows::Win32::Foundation::HWND> {
+        self.0.window_hwnd()
     }
 }
 
@@ -1100,6 +1104,9 @@ impl XamlElement {
         self.apply_layout()?;
         self.apply_background_color()?;
         self.notify_scale_factor_changed()?;
+        if self.0.context_menu.borrow().is_some() {
+            self.apply_context_menu()?;
+        }
         Ok(())
     }
 
@@ -1109,6 +1116,7 @@ impl XamlElement {
             children: RefCell::new(Vec::new()),
             layout: RefCell::new(None),
             measure_callback: RefCell::new(None),
+            context_menu: RefCell::new(None),
         }))
     }
 
@@ -1218,6 +1226,52 @@ impl XamlElement {
             XamlKind::Image(element) => element.realized.as_ref().unwrap().cast(),
             XamlKind::TabView(element) => element.realized.as_ref().unwrap().control.cast(),
             XamlKind::TabViewItem(element) => element.realized.as_ref().unwrap().content.cast(),
+        }
+    }
+
+    pub(crate) fn as_framework_element(&self) -> Result<FrameworkElement> {
+        self.as_ui_element()?.cast()
+    }
+
+    pub(crate) fn set_context_menu(&self, menu: Option<Rc<crate::menu::MenuData>>) -> Result<()> {
+        *self.0.context_menu.borrow_mut() = menu;
+        if is_xaml_running() && self.is_realized() {
+            self.apply_context_menu()?;
+        }
+        Ok(())
+    }
+
+    pub(crate) fn clear_context_menu_if(&self, menu: &Rc<crate::menu::MenuData>) -> Result<()> {
+        let owns_menu = self
+            .0
+            .context_menu
+            .borrow()
+            .as_ref()
+            .is_some_and(|current| Rc::ptr_eq(current, menu));
+        if owns_menu {
+            self.set_context_menu(None)?;
+        }
+        Ok(())
+    }
+
+    fn apply_context_menu(&self) -> Result<()> {
+        let target = self.as_ui_element()?.cast::<FrameworkElement>()?;
+        if let Some(menu) = self.0.context_menu.borrow().clone() {
+            menu.attach(&target)
+        } else {
+            target.SetContextFlyout(
+                None::<&crate::bindings::Microsoft::UI::Xaml::Controls::Primitives::FlyoutBase>,
+            )
+        }
+    }
+
+    fn window_hwnd(&self) -> Result<windows::Win32::Foundation::HWND> {
+        self.realize()?;
+        match &*self.0.kind.borrow() {
+            XamlKind::Window(element) => crate::window_native::window_hwnd(
+                element.realized.as_ref().expect("realized WinUI window"),
+            ),
+            _ => Err(Error::new(E_NOTIMPL, "Element is not a Window.")),
         }
     }
 

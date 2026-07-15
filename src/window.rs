@@ -18,6 +18,7 @@ use crate::{
 #[derive(Clone)]
 pub struct WindowContext {
     pub scale_factor: nestix::Readonly<f64>,
+    pub(crate) window: WindowElement,
 }
 
 #[component]
@@ -26,12 +27,13 @@ pub fn Window(props: &WindowProps, element: &Element) -> Element {
 
     let app_context = element.context::<AppContext>().unwrap();
     let scale_factor = create_state(1.0);
-    let window_context = Rc::new(WindowContext {
-        scale_factor: scale_factor.clone().into_readonly(),
-    });
     let tree_context = Rc::new(TreeContext::new());
 
     let window = WindowElement::new(props.title.get()).expect("failed to create WinUI window");
+    let window_context = Rc::new(WindowContext {
+        scale_factor: scale_factor.clone().into_readonly(),
+        window: window.clone(),
+    });
     let window_registration = app_context.app.register_window(window.erased());
     window
         .set_scale_factor_changed(Some(callback!([scale_factor] |value: f64| {
