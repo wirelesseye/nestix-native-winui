@@ -1,4 +1,11 @@
-use std::{cell::RefCell, rc::Rc};
+use std::{
+    cell::RefCell,
+    rc::Rc,
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
+    },
+};
 
 use nestix::Shared;
 use nestix_native_core::{FontStyle, Rect, ResolvedFontProps};
@@ -10,10 +17,12 @@ use windows_core::{Error, EventRevoker, HRESULT, HSTRING, Interface, Result};
 use crate::{
     bindings::{
         Microsoft::UI::Xaml::{
+            Controls::Primitives::RangeBase,
             Controls::{
-                Button, Canvas, Control, Grid, Image, MenuBar, RowDefinition, ScrollView,
+                Button, Canvas, CheckBox, ComboBox, ComboBoxItem, Control, Grid, Image,
+                ItemsControl, MenuBar, RadioButton, RowDefinition, ScrollView,
                 ScrollingContentOrientation, ScrollingScrollBarVisibility, SelectorBar,
-                SelectorBarItem, TextBlock, TextBox,
+                SelectorBarItem, Slider, TextBlock, TextBox, ToggleSwitch,
             },
             FrameworkElement, GridLength, GridUnitType, HorizontalAlignment,
             Media::{FontFamily, Imaging::BitmapImage, Stretch},
@@ -26,15 +35,19 @@ use crate::{
     },
     xaml_app::is_xaml_running,
     xaml_events::{
-        RegisteredClickCallback, RegisteredContentSizeCallback, RegisteredResizeCallback,
-        RegisteredScaleFactorCallback, RegisteredTabSelectionCallback,
-        RegisteredTextChangedCallback,
+        RegisteredBoolCallback, RegisteredClickCallback, RegisteredContentSizeCallback,
+        RegisteredF64Callback, RegisteredResizeCallback, RegisteredScaleFactorCallback,
+        RegisteredStringCallback, RegisteredTabSelectionCallback, RegisteredTextChangedCallback,
     },
 };
 
 const E_NOTIMPL: HRESULT = HRESULT(0x80004001u32 as i32);
 const E_FAIL: HRESULT = HRESULT(0x80004005u32 as i32);
 const BUTTON_INTRINSIC_SLACK: f32 = 2.0;
+const RADIO_BUTTON_GLYPH_COLUMN_WIDTH: f32 = 20.0;
+const RADIO_BUTTON_INTRINSIC_HEIGHT: f32 = 32.0;
+const COMBO_BOX_INTRINSIC_HEIGHT: f32 = 32.0;
+const TOGGLE_SWITCH_INTRINSIC_HEIGHT: f32 = 40.0;
 
 pub(crate) struct XamlNode {
     kind: RefCell<XamlKind>,
@@ -50,6 +63,11 @@ enum XamlKind {
     Canvas(CanvasState),
     ScrollView(ScrollViewState),
     Button(ButtonState),
+    CheckBox(CheckBoxState),
+    RadioButton(RadioButtonState),
+    Select(SelectState),
+    Switch(SwitchState),
+    Slider(SliderState),
     TextBlock(TextBlockState),
     TextBox(TextBoxState),
     Image(ImageState),
@@ -91,6 +109,82 @@ struct ButtonState {
     on_click: Option<nestix::Shared<dyn Fn()>>,
     realized: Option<RealizedButton>,
     click_handler: Rc<RefCell<Option<ClickHandlerState>>>,
+}
+
+#[derive(Debug, Clone)]
+struct CheckBoxState {
+    title: String,
+    font: ResolvedFontProps,
+    enabled: bool,
+    checked: bool,
+    on_change: Option<Shared<dyn Fn(bool)>>,
+    realized: Option<(CheckBox, TextBlock)>,
+    handler: Rc<RefCell<Option<ValueHandlerState<RegisteredBoolCallback>>>>,
+    updating: Arc<AtomicBool>,
+}
+
+#[derive(Debug, Clone)]
+struct RadioButtonState {
+    title: String,
+    font: ResolvedFontProps,
+    enabled: bool,
+    group: String,
+    selected: bool,
+    on_select: Option<Shared<dyn Fn()>>,
+    realized: Option<(RadioButton, TextBlock)>,
+    handler: Rc<RefCell<Option<ClickHandlerState>>>,
+    updating: Arc<AtomicBool>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct SelectOptionData {
+    pub label: String,
+    pub value: String,
+    pub enabled: bool,
+}
+
+#[derive(Debug, Clone)]
+struct SelectState {
+    enabled: bool,
+    value: Option<String>,
+    options: Arc<Mutex<Vec<(u64, SelectOptionData)>>>,
+    on_change: Option<Shared<dyn Fn(String)>>,
+    realized: Option<ComboBox>,
+    handler: Rc<RefCell<Option<ValueHandlerState<RegisteredStringCallback>>>>,
+    updating: Arc<AtomicBool>,
+}
+
+#[derive(Debug, Clone)]
+struct SwitchState {
+    enabled: bool,
+    checked: bool,
+    on_change: Option<Shared<dyn Fn(bool)>>,
+    realized: Option<ToggleSwitch>,
+    handler: Rc<RefCell<Option<ValueHandlerState<RegisteredBoolCallback>>>>,
+    updating: Arc<AtomicBool>,
+}
+
+#[derive(Debug, Clone)]
+struct SliderState {
+    enabled: bool,
+    minimum: f64,
+    maximum: f64,
+    value: f64,
+    on_change: Option<Shared<dyn Fn(f64)>>,
+    realized: Option<Slider>,
+    handler: Rc<RefCell<Option<ValueHandlerState<RegisteredF64Callback>>>>,
+    updating: Arc<AtomicBool>,
+}
+
+struct ValueHandlerState<T> {
+    _callback: T,
+    _revoker: EventRevoker,
+}
+
+impl<T> std::fmt::Debug for ValueHandlerState<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ValueHandlerState").finish_non_exhaustive()
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -305,6 +399,11 @@ typed_element!(WindowElement);
 typed_element!(CanvasElement);
 typed_element!(ScrollViewElement);
 typed_element!(ButtonElement);
+typed_element!(CheckBoxElement);
+typed_element!(RadioButtonElement);
+typed_element!(SelectElement);
+typed_element!(SwitchElement);
+typed_element!(SliderElement);
 typed_element!(TextBlockElement);
 typed_element!(TextBoxElement);
 typed_element!(ImageElement);
@@ -379,6 +478,105 @@ impl ButtonElement {
     }
     pub(crate) fn set_padding(&self, padding: Option<Rect<f64>>) -> Result<()> {
         self.0.set_button_padding(padding)
+    }
+}
+
+impl CheckBoxElement {
+    pub(crate) fn new(title: String) -> Result<Self> {
+        Ok(Self(XamlElement::new_checkbox(title)))
+    }
+    pub(crate) fn set_title(&self, value: String) -> Result<()> {
+        self.0.set_text(value)
+    }
+    pub(crate) fn set_enabled(&self, value: bool) -> Result<()> {
+        self.0.set_enabled(value)
+    }
+    pub(crate) fn set_checked(&self, value: bool) -> Result<()> {
+        self.0.set_checked(value)
+    }
+    pub(crate) fn set_on_checked_change(&self, value: Option<Shared<dyn Fn(bool)>>) -> Result<()> {
+        self.0.set_bool_handler(value)
+    }
+    pub(crate) fn set_font(&self, value: ResolvedFontProps) -> Result<()> {
+        self.0.set_font(value)
+    }
+}
+
+impl RadioButtonElement {
+    pub(crate) fn new(title: String) -> Result<Self> {
+        Ok(Self(XamlElement::new_radio_button(title)))
+    }
+    pub(crate) fn set_title(&self, value: String) -> Result<()> {
+        self.0.set_text(value)
+    }
+    pub(crate) fn set_enabled(&self, value: bool) -> Result<()> {
+        self.0.set_enabled(value)
+    }
+    pub(crate) fn set_group(&self, value: String) -> Result<()> {
+        self.0.set_radio_group(value)
+    }
+    pub(crate) fn set_selected(&self, value: bool) -> Result<()> {
+        self.0.set_checked(value)
+    }
+    pub(crate) fn set_on_select(&self, value: Option<Shared<dyn Fn()>>) -> Result<()> {
+        self.0.set_click_handler(value)
+    }
+    pub(crate) fn set_font(&self, value: ResolvedFontProps) -> Result<()> {
+        self.0.set_font(value)
+    }
+}
+
+impl SelectElement {
+    pub(crate) fn new() -> Result<Self> {
+        Ok(Self(XamlElement::new_select()))
+    }
+    pub(crate) fn set_enabled(&self, value: bool) -> Result<()> {
+        self.0.set_enabled(value)
+    }
+    pub(crate) fn set_value(&self, value: Option<String>) -> Result<()> {
+        self.0.set_select_value(value)
+    }
+    pub(crate) fn set_on_value_change(&self, value: Option<Shared<dyn Fn(String)>>) -> Result<()> {
+        self.0.set_string_handler(value)
+    }
+    pub(crate) fn upsert_option(&self, id: u64, option: SelectOptionData) -> Result<()> {
+        self.0.upsert_select_option(id, option)
+    }
+    pub(crate) fn remove_option(&self, id: u64) -> Result<()> {
+        self.0.remove_select_option(id)
+    }
+    pub(crate) fn move_option(&self, id: u64, index: usize) -> Result<()> {
+        self.0.move_select_option(id, index)
+    }
+}
+
+impl SwitchElement {
+    pub(crate) fn new() -> Result<Self> {
+        Ok(Self(XamlElement::new_switch()))
+    }
+    pub(crate) fn set_enabled(&self, value: bool) -> Result<()> {
+        self.0.set_enabled(value)
+    }
+    pub(crate) fn set_checked(&self, value: bool) -> Result<()> {
+        self.0.set_checked(value)
+    }
+    pub(crate) fn set_on_checked_change(&self, value: Option<Shared<dyn Fn(bool)>>) -> Result<()> {
+        self.0.set_bool_handler(value)
+    }
+}
+
+impl SliderElement {
+    pub(crate) fn new() -> Result<Self> {
+        Ok(Self(XamlElement::new_slider()))
+    }
+    pub(crate) fn set_enabled(&self, value: bool) -> Result<()> {
+        self.0.set_enabled(value)
+    }
+    pub(crate) fn set_range(&self, minimum: f64, maximum: f64, value: f64) -> Result<()> {
+        self.0.set_slider_range(minimum, maximum, value)
+    }
+    pub(crate) fn set_on_value_change(&self, value: Option<Shared<dyn Fn(f64)>>) -> Result<()> {
+        self.0.set_f64_handler(value)
     }
 }
 
@@ -507,6 +705,69 @@ impl XamlElement {
             realized: None,
             click_handler: Rc::new(RefCell::new(None)),
         })))
+    }
+
+    fn new_checkbox(title: String) -> Self {
+        Self::new(XamlKind::CheckBox(CheckBoxState {
+            title,
+            font: ResolvedFontProps::default(),
+            enabled: true,
+            checked: false,
+            on_change: None,
+            realized: None,
+            handler: Rc::new(RefCell::new(None)),
+            updating: Arc::new(AtomicBool::new(false)),
+        }))
+    }
+
+    fn new_radio_button(title: String) -> Self {
+        Self::new(XamlKind::RadioButton(RadioButtonState {
+            title,
+            font: ResolvedFontProps::default(),
+            enabled: true,
+            group: String::new(),
+            selected: false,
+            on_select: None,
+            realized: None,
+            handler: Rc::new(RefCell::new(None)),
+            updating: Arc::new(AtomicBool::new(false)),
+        }))
+    }
+
+    fn new_select() -> Self {
+        Self::new(XamlKind::Select(SelectState {
+            enabled: true,
+            value: None,
+            options: Arc::new(Mutex::new(Vec::new())),
+            on_change: None,
+            realized: None,
+            handler: Rc::new(RefCell::new(None)),
+            updating: Arc::new(AtomicBool::new(false)),
+        }))
+    }
+
+    fn new_switch() -> Self {
+        Self::new(XamlKind::Switch(SwitchState {
+            enabled: true,
+            checked: false,
+            on_change: None,
+            realized: None,
+            handler: Rc::new(RefCell::new(None)),
+            updating: Arc::new(AtomicBool::new(false)),
+        }))
+    }
+
+    fn new_slider() -> Self {
+        Self::new(XamlKind::Slider(SliderState {
+            enabled: true,
+            minimum: 0.0,
+            maximum: 100.0,
+            value: 0.0,
+            on_change: None,
+            realized: None,
+            handler: Rc::new(RefCell::new(None)),
+            updating: Arc::new(AtomicBool::new(false)),
+        }))
     }
 
     fn text_block(text: String) -> Result<Self> {
@@ -673,6 +934,11 @@ impl XamlElement {
                 }
             }
             XamlKind::Button(_)
+            | XamlKind::CheckBox(_)
+            | XamlKind::RadioButton(_)
+            | XamlKind::Select(_)
+            | XamlKind::Switch(_)
+            | XamlKind::Slider(_)
             | XamlKind::TextBlock(_)
             | XamlKind::TextBox(_)
             | XamlKind::MenuBar(_)
@@ -696,6 +962,20 @@ impl XamlElement {
                     element.title = text.clone();
                     if let Some(realized) = &element.realized {
                         realized.label.SetText(&text_value)?;
+                    }
+                    None
+                }
+                XamlKind::CheckBox(element) => {
+                    element.title = text.clone();
+                    if let Some((_, label)) = &element.realized {
+                        label.SetText(&text_value)?;
+                    }
+                    None
+                }
+                XamlKind::RadioButton(element) => {
+                    element.title = text.clone();
+                    if let Some((_, label)) = &element.realized {
+                        label.SetText(&text_value)?;
                     }
                     None
                 }
@@ -727,6 +1007,9 @@ impl XamlElement {
                 | XamlKind::ScrollView(_)
                 | XamlKind::TabView(_)
                 | XamlKind::MenuBar(_)
+                | XamlKind::Select(_)
+                | XamlKind::Switch(_)
+                | XamlKind::Slider(_)
                 | XamlKind::Image(_) => None,
             }
         };
@@ -752,6 +1035,18 @@ impl XamlElement {
                     apply_font(realized, &font)?;
                 }
             }
+            XamlKind::CheckBox(element) => {
+                element.font = font.clone();
+                if let Some((_, label)) = &element.realized {
+                    apply_font(label, &font)?;
+                }
+            }
+            XamlKind::RadioButton(element) => {
+                element.font = font.clone();
+                if let Some((_, label)) = &element.realized {
+                    apply_font(label, &font)?;
+                }
+            }
             _ => {
                 return Err(Error::new(
                     E_NOTIMPL,
@@ -760,6 +1055,214 @@ impl XamlElement {
             }
         }
         self.measure_intrinsic_recursive()
+    }
+
+    fn set_enabled(&self, enabled: bool) -> Result<()> {
+        match &mut *self.0.kind.borrow_mut() {
+            XamlKind::CheckBox(s) => {
+                s.enabled = enabled;
+                if let Some((c, _)) = &s.realized {
+                    c.SetIsEnabled(enabled)?;
+                }
+            }
+            XamlKind::RadioButton(s) => {
+                s.enabled = enabled;
+                if let Some((c, _)) = &s.realized {
+                    c.SetIsEnabled(enabled)?;
+                }
+            }
+            XamlKind::Select(s) => {
+                s.enabled = enabled;
+                if let Some(c) = &s.realized {
+                    c.SetIsEnabled(enabled)?;
+                }
+            }
+            XamlKind::Switch(s) => {
+                s.enabled = enabled;
+                if let Some(c) = &s.realized {
+                    c.SetIsEnabled(enabled)?;
+                }
+            }
+            XamlKind::Slider(s) => {
+                s.enabled = enabled;
+                if let Some(c) = &s.realized {
+                    c.SetIsEnabled(enabled)?;
+                }
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    fn set_checked(&self, checked: bool) -> Result<()> {
+        match &mut *self.0.kind.borrow_mut() {
+            XamlKind::CheckBox(s) => {
+                s.checked = checked;
+                if let Some((c, _)) = &s.realized {
+                    s.updating.store(true, Ordering::SeqCst);
+                    let result = c.SetIsChecked(Some(checked));
+                    s.updating.store(false, Ordering::SeqCst);
+                    result?;
+                }
+            }
+            XamlKind::RadioButton(s) => {
+                s.selected = checked;
+                if let Some((c, _)) = &s.realized {
+                    s.updating.store(true, Ordering::SeqCst);
+                    let result = c.SetIsChecked(Some(checked));
+                    s.updating.store(false, Ordering::SeqCst);
+                    result?;
+                }
+            }
+            XamlKind::Switch(s) => {
+                s.checked = checked;
+                if let Some(c) = &s.realized {
+                    s.updating.store(true, Ordering::SeqCst);
+                    let result = c.SetIsOn(checked);
+                    s.updating.store(false, Ordering::SeqCst);
+                    result?;
+                }
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    fn set_radio_group(&self, group: String) -> Result<()> {
+        let mut kind = self.0.kind.borrow_mut();
+        let XamlKind::RadioButton(s) = &mut *kind else {
+            return Ok(());
+        };
+        s.group = group;
+        if let Some((c, _)) = &s.realized {
+            c.SetGroupName(&HSTRING::from(&s.group))?;
+        }
+        Ok(())
+    }
+
+    fn set_bool_handler(&self, handler: Option<Shared<dyn Fn(bool)>>) -> Result<()> {
+        match &mut *self.0.kind.borrow_mut() {
+            XamlKind::CheckBox(s) => {
+                s.on_change = handler;
+                s.attach_handler()?;
+            }
+            XamlKind::Switch(s) => {
+                s.on_change = handler;
+                s.attach_handler()?;
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    fn set_click_handler(&self, handler: Option<Shared<dyn Fn()>>) -> Result<()> {
+        let mut kind = self.0.kind.borrow_mut();
+        let XamlKind::RadioButton(s) = &mut *kind else {
+            return Ok(());
+        };
+        s.on_select = handler;
+        s.attach_handler()
+    }
+
+    fn set_select_value(&self, value: Option<String>) -> Result<()> {
+        let mut kind = self.0.kind.borrow_mut();
+        let XamlKind::Select(s) = &mut *kind else {
+            return Ok(());
+        };
+        s.value = value;
+        s.apply_selection()
+    }
+
+    fn set_string_handler(&self, handler: Option<Shared<dyn Fn(String)>>) -> Result<()> {
+        let mut kind = self.0.kind.borrow_mut();
+        let XamlKind::Select(s) = &mut *kind else {
+            return Ok(());
+        };
+        s.on_change = handler;
+        s.attach_handler()
+    }
+
+    fn upsert_select_option(&self, id: u64, option: SelectOptionData) -> Result<()> {
+        let mut kind = self.0.kind.borrow_mut();
+        let XamlKind::Select(s) = &mut *kind else {
+            return Ok(());
+        };
+        let mut options = s.options.lock().unwrap();
+        if let Some(current) = options.iter_mut().find(|(current, _)| *current == id) {
+            current.1 = option;
+        } else {
+            options.push((id, option));
+        }
+        drop(options);
+        s.apply_options()?;
+        drop(kind);
+        self.measure_intrinsic()
+    }
+
+    fn remove_select_option(&self, id: u64) -> Result<()> {
+        let mut kind = self.0.kind.borrow_mut();
+        let XamlKind::Select(s) = &mut *kind else {
+            return Ok(());
+        };
+        s.options
+            .lock()
+            .unwrap()
+            .retain(|(current, _)| *current != id);
+        s.apply_options()?;
+        drop(kind);
+        self.measure_intrinsic()
+    }
+
+    fn move_select_option(&self, id: u64, index: usize) -> Result<()> {
+        let mut kind = self.0.kind.borrow_mut();
+        let XamlKind::Select(s) = &mut *kind else {
+            return Ok(());
+        };
+        let mut options = s.options.lock().unwrap();
+        if let Some(current) = options.iter().position(|(current, _)| *current == id) {
+            let option = options.remove(current);
+            let index = index.min(options.len());
+            options.insert(index, option);
+        }
+        drop(options);
+        s.apply_options()?;
+        drop(kind);
+        self.measure_intrinsic()
+    }
+
+    fn set_slider_range(&self, minimum: f64, maximum: f64, value: f64) -> Result<()> {
+        let mut kind = self.0.kind.borrow_mut();
+        let XamlKind::Slider(s) = &mut *kind else {
+            return Ok(());
+        };
+        s.minimum = minimum;
+        s.maximum = maximum;
+        s.value = value;
+        if let Some(c) = &s.realized {
+            s.updating.store(true, Ordering::SeqCst);
+            let value = if minimum <= maximum {
+                value.clamp(minimum, maximum)
+            } else {
+                minimum
+            };
+            let result = (|| {
+                c.SetMinimum(minimum)?;
+                c.SetMaximum(maximum)?;
+                c.SetValue2(value)
+            })();
+            s.updating.store(false, Ordering::SeqCst);
+            result?;
+        }
+        Ok(())
+    }
+
+    fn set_f64_handler(&self, handler: Option<Shared<dyn Fn(f64)>>) -> Result<()> {
+        let mut kind = self.0.kind.borrow_mut();
+        let XamlKind::Slider(s) = &mut *kind else {
+            return Ok(());
+        };
+        s.on_change = handler;
+        s.attach_handler()
     }
 
     fn set_button_padding(&self, padding: Option<Rect<f64>>) -> Result<()> {
@@ -1042,6 +1545,13 @@ impl XamlElement {
         let framework_element = ui_element.cast::<FrameworkElement>()?;
         framework_element.SetWidth(f64::NAN)?;
         framework_element.SetHeight(f64::NAN)?;
+        // Controls such as RadioButton and ComboBox only report the size of
+        // their content before their template has been applied. That clips
+        // template chrome (the radio glyph), while an untemplated ComboBox
+        // measures its whole item collection as inline content.
+        if let Ok(control) = ui_element.cast::<Control>() {
+            control.ApplyTemplate()?;
+        }
         let available = Size {
             Width: f32::INFINITY,
             Height: f32::INFINITY,
@@ -1089,6 +1599,47 @@ impl XamlElement {
                     Height: desired.Height.max(min_height),
                 }
             }
+            XamlKind::RadioButton(element) => {
+                let (control, label) = element.realized.as_ref().unwrap();
+                label.SetWidth(f64::NAN)?;
+                label.SetHeight(f64::NAN)?;
+                label.Measure(available)?;
+                let text_size = label.DesiredSize()?;
+                let padding = control.Padding()?;
+                Size {
+                    Width: (RADIO_BUTTON_GLYPH_COLUMN_WIDTH
+                        + padding.Left as f32
+                        + padding.Right as f32
+                        + text_size.Width)
+                        .max(control.MinWidth()? as f32),
+                    Height: (padding.Top as f32 + padding.Bottom as f32 + text_size.Height)
+                        .max(RADIO_BUTTON_INTRINSIC_HEIGHT)
+                        .max(control.MinHeight()? as f32),
+                }
+            }
+            XamlKind::Select(element) => {
+                let control = element.realized.as_ref().unwrap();
+                ui_element.Measure(available)?;
+                let desired = ui_element.DesiredSize()?;
+                Size {
+                    Width: desired.Width.max(control.MinWidth()? as f32),
+                    // Unconstrained ComboBox measurement includes its popup
+                    // item presenter. Its collapsed template is one 32-DIP row.
+                    Height: COMBO_BOX_INTRINSIC_HEIGHT.max(control.MinHeight()? as f32),
+                }
+            }
+            XamlKind::Switch(element) => {
+                let control = element.realized.as_ref().unwrap();
+                ui_element.Measure(available)?;
+                let desired = ui_element.DesiredSize()?;
+                Size {
+                    Width: desired.Width.max(control.MinWidth()? as f32),
+                    Height: desired
+                        .Height
+                        .max(TOGGLE_SWITCH_INTRINSIC_HEIGHT)
+                        .max(control.MinHeight()? as f32),
+                }
+            }
             XamlKind::Image(element) => {
                 let image = element.realized.as_ref().unwrap();
                 image.SetStretch(Stretch::None)?;
@@ -1124,6 +1675,11 @@ impl XamlElement {
             XamlKind::Canvas(element) => element.realize()?,
             XamlKind::ScrollView(element) => element.realize()?,
             XamlKind::Button(element) => element.realize()?,
+            XamlKind::CheckBox(element) => element.realize()?,
+            XamlKind::RadioButton(element) => element.realize()?,
+            XamlKind::Select(element) => element.realize()?,
+            XamlKind::Switch(element) => element.realize()?,
+            XamlKind::Slider(element) => element.realize()?,
             XamlKind::TextBlock(element) => element.realize()?,
             XamlKind::TextBox(element) => element.realize()?,
             XamlKind::Image(element) => element.realize()?,
@@ -1164,6 +1720,11 @@ impl XamlElement {
             XamlKind::Canvas(element) => element.realized.is_some(),
             XamlKind::ScrollView(element) => element.realized.is_some(),
             XamlKind::Button(element) => element.realized.is_some(),
+            XamlKind::CheckBox(element) => element.realized.is_some(),
+            XamlKind::RadioButton(element) => element.realized.is_some(),
+            XamlKind::Select(element) => element.realized.is_some(),
+            XamlKind::Switch(element) => element.realized.is_some(),
+            XamlKind::Slider(element) => element.realized.is_some(),
             XamlKind::TextBlock(element) => element.realized.is_some(),
             XamlKind::TextBox(element) => element.realized.is_some(),
             XamlKind::Image(element) => element.realized.is_some(),
@@ -1246,6 +1807,11 @@ impl XamlElement {
                 }
             }
             XamlKind::Button(_)
+            | XamlKind::CheckBox(_)
+            | XamlKind::RadioButton(_)
+            | XamlKind::Select(_)
+            | XamlKind::Switch(_)
+            | XamlKind::Slider(_)
             | XamlKind::TextBlock(_)
             | XamlKind::TextBox(_)
             | XamlKind::MenuBar(_)
@@ -1261,6 +1827,11 @@ impl XamlElement {
             XamlKind::Canvas(element) => element.realized.as_ref().unwrap().cast(),
             XamlKind::ScrollView(element) => element.realized.as_ref().unwrap().cast(),
             XamlKind::Button(element) => element.realized.as_ref().unwrap().control.cast(),
+            XamlKind::CheckBox(element) => element.realized.as_ref().unwrap().0.cast(),
+            XamlKind::RadioButton(element) => element.realized.as_ref().unwrap().0.cast(),
+            XamlKind::Select(element) => element.realized.as_ref().unwrap().cast(),
+            XamlKind::Switch(element) => element.realized.as_ref().unwrap().cast(),
+            XamlKind::Slider(element) => element.realized.as_ref().unwrap().cast(),
             XamlKind::TextBlock(element) => element.realized.as_ref().unwrap().cast(),
             XamlKind::TextBox(element) => element.realized.as_ref().unwrap().cast(),
             XamlKind::Image(element) => element.realized.as_ref().unwrap().cast(),
@@ -1636,6 +2207,249 @@ impl ButtonState {
     }
 }
 
+impl CheckBoxState {
+    fn realize(&mut self) -> Result<()> {
+        let control = CheckBox::new()?;
+        let label = TextBlock::new()?;
+        label.SetText(&HSTRING::from(&self.title))?;
+        apply_font(&label, &self.font)?;
+        control.SetContent(&label)?;
+        control.SetIsEnabled(self.enabled)?;
+        control.SetIsChecked(Some(self.checked))?;
+        self.realized = Some((control, label));
+        self.attach_handler()
+    }
+
+    fn attach_handler(&self) -> Result<()> {
+        self.handler.take();
+        let (Some(handler), Some((control, _))) = (self.on_change.clone(), self.realized.as_ref())
+        else {
+            return Ok(());
+        };
+        let callback = RegisteredBoolCallback::register(handler);
+        let id = callback.id();
+        let updating = self.updating.clone();
+        let control_for_event = control.clone();
+        let revoker = control.Click(move |_, _| {
+            if !updating.load(Ordering::SeqCst)
+                && let Ok(value) = control_for_event.IsChecked()
+            {
+                RegisteredBoolCallback::invoke(id, value);
+            }
+        })?;
+        self.handler.replace(Some(ValueHandlerState {
+            _callback: callback,
+            _revoker: revoker,
+        }));
+        Ok(())
+    }
+}
+
+impl RadioButtonState {
+    fn realize(&mut self) -> Result<()> {
+        let control = RadioButton::new()?;
+        let label = TextBlock::new()?;
+        label.SetText(&HSTRING::from(&self.title))?;
+        apply_font(&label, &self.font)?;
+        control.SetContent(&label)?;
+        control.SetIsEnabled(self.enabled)?;
+        control.SetGroupName(&HSTRING::from(&self.group))?;
+        control.SetIsChecked(Some(self.selected))?;
+        self.realized = Some((control, label));
+        self.attach_handler()
+    }
+
+    fn attach_handler(&self) -> Result<()> {
+        self.handler.take();
+        let (Some(handler), Some((control, _))) = (self.on_select.clone(), self.realized.as_ref())
+        else {
+            return Ok(());
+        };
+        let callback = RegisteredClickCallback::register(handler);
+        let id = callback.id();
+        let updating = self.updating.clone();
+        let control_for_event = control.clone();
+        let revoker = control.Click(move |_, _| {
+            if !updating.load(Ordering::SeqCst) && control_for_event.IsChecked().unwrap_or(false) {
+                RegisteredClickCallback::invoke(id);
+            }
+        })?;
+        self.handler.replace(Some(ClickHandlerState {
+            callback,
+            _revoker: revoker,
+        }));
+        Ok(())
+    }
+}
+
+impl SelectState {
+    fn realize(&mut self) -> Result<()> {
+        let control = ComboBox::new()?;
+        control.SetIsEnabled(self.enabled)?;
+        self.realized = Some(control);
+        self.apply_options()?;
+        self.attach_handler()
+    }
+
+    fn apply_options(&self) -> Result<()> {
+        let Some(control) = &self.realized else {
+            return Ok(());
+        };
+        self.updating.store(true, Ordering::SeqCst);
+        let result = (|| {
+            let items = control.cast::<ItemsControl>()?.Items()?;
+            while items.Size()? > 0 {
+                items.RemoveAtEnd()?;
+            }
+            for (_, option) in self.options.lock().unwrap().iter() {
+                let item = ComboBoxItem::new()?;
+                let label = TextBlock::new()?;
+                label.SetText(&HSTRING::from(&option.label))?;
+                item.SetContent(&label)?;
+                item.SetIsEnabled(option.enabled)?;
+                let item: windows_core::IInspectable = item.cast()?;
+                items.Append(&item)?;
+            }
+            self.apply_selection()
+        })();
+        self.updating.store(false, Ordering::SeqCst);
+        result
+    }
+
+    fn apply_selection(&self) -> Result<()> {
+        let Some(control) = &self.realized else {
+            return Ok(());
+        };
+        let index = self
+            .value
+            .as_ref()
+            .and_then(|value| {
+                self.options
+                    .lock()
+                    .unwrap()
+                    .iter()
+                    .position(|(_, option)| &option.value == value)
+            })
+            .map(|index| index as i32)
+            .unwrap_or(-1);
+        self.updating.store(true, Ordering::SeqCst);
+        let result = control.SetSelectedIndex(index);
+        self.updating.store(false, Ordering::SeqCst);
+        result
+    }
+
+    fn attach_handler(&self) -> Result<()> {
+        self.handler.take();
+        let (Some(handler), Some(control)) = (self.on_change.clone(), self.realized.as_ref())
+        else {
+            return Ok(());
+        };
+        let callback = RegisteredStringCallback::register(handler);
+        let id = callback.id();
+        let updating = self.updating.clone();
+        let options = self.options.clone();
+        let control_for_event = control.clone();
+        let revoker = control.SelectionChanged(move |_, _| {
+            if updating.load(Ordering::SeqCst) {
+                return;
+            }
+            let Ok(index) = control_for_event.SelectedIndex() else {
+                return;
+            };
+            let value = (index >= 0)
+                .then(|| {
+                    options
+                        .lock()
+                        .unwrap()
+                        .get(index as usize)
+                        .map(|(_, option)| option.value.clone())
+                })
+                .flatten();
+            // Do not invoke application code while holding the options lock:
+            // controlled Select callbacks synchronously update `value`, which
+            // needs to acquire the same lock to resolve the selected index.
+            if let Some(value) = value {
+                RegisteredStringCallback::invoke(id, value);
+            }
+        })?;
+        self.handler.replace(Some(ValueHandlerState {
+            _callback: callback,
+            _revoker: revoker,
+        }));
+        Ok(())
+    }
+}
+
+impl SwitchState {
+    fn realize(&mut self) -> Result<()> {
+        let control = ToggleSwitch::new()?;
+        control.SetIsEnabled(self.enabled)?;
+        control.SetIsOn(self.checked)?;
+        self.realized = Some(control);
+        self.attach_handler()
+    }
+
+    fn attach_handler(&self) -> Result<()> {
+        self.handler.take();
+        let (Some(handler), Some(control)) = (self.on_change.clone(), self.realized.as_ref())
+        else {
+            return Ok(());
+        };
+        let callback = RegisteredBoolCallback::register(handler);
+        let id = callback.id();
+        let updating = self.updating.clone();
+        let control_for_event = control.clone();
+        let revoker = control.Toggled(move |_, _| {
+            if !updating.load(Ordering::SeqCst)
+                && let Ok(value) = control_for_event.IsOn()
+            {
+                RegisteredBoolCallback::invoke(id, value);
+            }
+        })?;
+        self.handler.replace(Some(ValueHandlerState {
+            _callback: callback,
+            _revoker: revoker,
+        }));
+        Ok(())
+    }
+}
+
+impl SliderState {
+    fn realize(&mut self) -> Result<()> {
+        let control = Slider::new()?;
+        control.SetIsEnabled(self.enabled)?;
+        control.SetMinimum(self.minimum)?;
+        control.SetMaximum(self.maximum)?;
+        control.SetValue2(self.value)?;
+        self.realized = Some(control);
+        self.attach_handler()
+    }
+
+    fn attach_handler(&self) -> Result<()> {
+        self.handler.take();
+        let (Some(handler), Some(control)) = (self.on_change.clone(), self.realized.as_ref())
+        else {
+            return Ok(());
+        };
+        let callback = RegisteredF64Callback::register(handler);
+        let id = callback.id();
+        let updating = self.updating.clone();
+        let control_for_event = control.clone();
+        let revoker = control.cast::<RangeBase>()?.ValueChanged(move |_, _| {
+            if !updating.load(Ordering::SeqCst)
+                && let Ok(value) = control_for_event.Value()
+            {
+                RegisteredF64Callback::invoke(id, value);
+            }
+        })?;
+        self.handler.replace(Some(ValueHandlerState {
+            _callback: callback,
+            _revoker: revoker,
+        }));
+        Ok(())
+    }
+}
+
 fn apply_button_padding(button: &Button, padding: Option<Rect<f64>>) -> Result<()> {
     if let Some(padding) = padding {
         button.SetPadding(crate::bindings::Microsoft::UI::Xaml::Thickness {
@@ -1869,13 +2683,56 @@ fn set_canvas_background(canvas: &Canvas, color: Option<nestix_native_core::Colo
 
 #[cfg(test)]
 mod tests {
-    use super::{CanvasElement, XamlElement, XamlKind};
+    use super::{CanvasElement, SelectOptionData, XamlElement, XamlKind};
     use nestix_native_core::TreeContext;
 
     #[test]
     fn typed_element_erases_without_changing_identity() {
         let canvas = CanvasElement::new().unwrap();
         assert_eq!(canvas.erased(), canvas.erased());
+    }
+
+    #[test]
+    fn select_options_update_remove_and_reorder_before_realization() {
+        let select = XamlElement::new_select();
+        let option = |label: &str, value: &str| SelectOptionData {
+            label: label.into(),
+            value: value.into(),
+            enabled: true,
+        };
+        select
+            .upsert_select_option(1, option("First", "first"))
+            .unwrap();
+        select
+            .upsert_select_option(2, option("Second", "second"))
+            .unwrap();
+        select.move_select_option(2, 0).unwrap();
+        select
+            .upsert_select_option(1, option("Updated", "first"))
+            .unwrap();
+
+        let kind = select.0.kind.borrow();
+        let XamlKind::Select(state) = &*kind else {
+            panic!("expected select")
+        };
+        assert_eq!(
+            state.options.lock().unwrap().as_slice(),
+            &[
+                (2, option("Second", "second")),
+                (1, option("Updated", "first"))
+            ]
+        );
+        drop(kind);
+
+        select.remove_select_option(2).unwrap();
+        let kind = select.0.kind.borrow();
+        let XamlKind::Select(state) = &*kind else {
+            panic!("expected select")
+        };
+        assert_eq!(
+            state.options.lock().unwrap().as_slice(),
+            &[(1, option("Updated", "first"))]
+        );
     }
 
     #[test]

@@ -181,6 +181,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "877a4ace8713b0bcf2a4e7eec82529c029f1d0619886d18145fea96c3ffe5c0f"
 
 [[package]]
+name = "form-controls-example"
+version = "0.1.0"
+dependencies = [
+ "env_logger",
+ "nestix",
+ "nestix-native",
+ "nestix-native-winui",
+]
+
+[[package]]
 name = "getrandom"
 version = "0.2.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -318,7 +328,7 @@ dependencies = [
 [[package]]
 name = "nestix-native"
 version = "0.1.0"
-source = "git+https://github.com/wirelesseye/nestix-native.git#e4e28252782fbc4f535c93b66c911740c32ec5b9"
+source = "git+https://github.com/wirelesseye/nestix-native.git#fd0447422f537fccb7d89a6437defbedb4317cf6"
 dependencies = [
  "nestix",
  "nestix-native-core",
@@ -327,7 +337,7 @@ dependencies = [
 [[package]]
 name = "nestix-native-core"
 version = "0.1.0"
-source = "git+https://github.com/wirelesseye/nestix-native.git#e4e28252782fbc4f535c93b66c911740c32ec5b9"
+source = "git+https://github.com/wirelesseye/nestix-native.git#fd0447422f537fccb7d89a6437defbedb4317cf6"
 dependencies = [
  "dpi",
  "nestix",
@@ -338,7 +348,7 @@ dependencies = [
 [[package]]
 name = "nestix-native-macros"
 version = "0.1.0"
-source = "git+https://github.com/wirelesseye/nestix-native.git#e4e28252782fbc4f535c93b66c911740c32ec5b9"
+source = "git+https://github.com/wirelesseye/nestix-native.git#fd0447422f537fccb7d89a6437defbedb4317cf6"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",

@@ -13,7 +13,48 @@ thread_local! {
     static TAB_SELECTION_CALLBACKS: RefCell<HashMap<u64, nestix::Shared<dyn Fn(String)>>> = RefCell::new(HashMap::new());
     static CONTENT_SIZE_CALLBACKS: RefCell<HashMap<u64, nestix::Shared<dyn Fn(f32, f32)>>> = RefCell::new(HashMap::new());
     static TEXT_CHANGED_CALLBACKS: RefCell<HashMap<u64, nestix::Shared<dyn Fn(String)>>> = RefCell::new(HashMap::new());
+    static BOOL_CALLBACKS: RefCell<HashMap<u64, nestix::Shared<dyn Fn(bool)>>> = RefCell::new(HashMap::new());
+    static F64_CALLBACKS: RefCell<HashMap<u64, nestix::Shared<dyn Fn(f64)>>> = RefCell::new(HashMap::new());
+    static STRING_CALLBACKS: RefCell<HashMap<u64, nestix::Shared<dyn Fn(String)>>> = RefCell::new(HashMap::new());
 }
+
+macro_rules! registered_value_callback {
+    ($name:ident, $map:ident, $value:ty) => {
+        #[derive(Debug)]
+        pub(crate) struct $name {
+            id: u64,
+        }
+        impl $name {
+            pub fn register(callback: nestix::Shared<dyn Fn($value)>) -> Self {
+                let id = next_callback_id();
+                $map.with_borrow_mut(|callbacks| {
+                    callbacks.insert(id, callback);
+                });
+                Self { id }
+            }
+            pub fn id(&self) -> u64 {
+                self.id
+            }
+            pub fn invoke(id: u64, value: $value) {
+                let callback = $map.with_borrow(|callbacks| callbacks.get(&id).cloned());
+                if let Some(callback) = callback {
+                    callback(value);
+                }
+            }
+        }
+        impl Drop for $name {
+            fn drop(&mut self) {
+                $map.with_borrow_mut(|callbacks| {
+                    callbacks.remove(&self.id);
+                });
+            }
+        }
+    };
+}
+
+registered_value_callback!(RegisteredBoolCallback, BOOL_CALLBACKS, bool);
+registered_value_callback!(RegisteredF64Callback, F64_CALLBACKS, f64);
+registered_value_callback!(RegisteredStringCallback, STRING_CALLBACKS, String);
 
 #[derive(Debug)]
 pub(crate) struct RegisteredContentSizeCallback {
