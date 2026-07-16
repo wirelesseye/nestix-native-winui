@@ -44,10 +44,11 @@ use crate::{
 const E_NOTIMPL: HRESULT = HRESULT(0x80004001u32 as i32);
 const E_FAIL: HRESULT = HRESULT(0x80004005u32 as i32);
 const BUTTON_INTRINSIC_SLACK: f32 = 2.0;
+// The default WinUI templates do not expose these literal template
+// dimensions as resources or control properties.
 const RADIO_BUTTON_GLYPH_COLUMN_WIDTH: f32 = 20.0;
 const RADIO_BUTTON_INTRINSIC_HEIGHT: f32 = 32.0;
-const COMBO_BOX_INTRINSIC_HEIGHT: f32 = 32.0;
-const TOGGLE_SWITCH_INTRINSIC_HEIGHT: f32 = 40.0;
+const TOGGLE_SWITCH_TRACK_HEIGHT: f32 = 20.0;
 
 pub(crate) struct XamlNode {
     kind: RefCell<XamlKind>,
@@ -1545,13 +1546,6 @@ impl XamlElement {
         let framework_element = ui_element.cast::<FrameworkElement>()?;
         framework_element.SetWidth(f64::NAN)?;
         framework_element.SetHeight(f64::NAN)?;
-        // Controls such as RadioButton and ComboBox only report the size of
-        // their content before their template has been applied. That clips
-        // template chrome (the radio glyph), while an untemplated ComboBox
-        // measures its whole item collection as inline content.
-        if let Ok(control) = ui_element.cast::<Control>() {
-            control.ApplyTemplate()?;
-        }
         let available = Size {
             Width: f32::INFINITY,
             Height: f32::INFINITY,
@@ -1599,8 +1593,36 @@ impl XamlElement {
                     Height: desired.Height.max(min_height),
                 }
             }
+            XamlKind::CheckBox(element) => {
+                let (control, label) = element.realized.as_ref().unwrap();
+                control.ApplyTemplate()?;
+                label.SetWidth(f64::NAN)?;
+                label.SetHeight(f64::NAN)?;
+                label.Measure(available)?;
+                let text_size = label.DesiredSize()?;
+                let control_padding = control.Padding()?;
+                let padding = if control_padding == Default::default() {
+                    crate::xaml_app::theme_thickness("CheckBoxPadding").unwrap_or(control_padding)
+                } else {
+                    control_padding
+                };
+                let glyph_width = crate::xaml_app::theme_f64("CheckBoxSize").unwrap_or_default();
+                let template_height =
+                    crate::xaml_app::theme_f64("CheckBoxHeight").unwrap_or_default();
+                Size {
+                    Width: (glyph_width as f32
+                        + padding.Left as f32
+                        + padding.Right as f32
+                        + text_size.Width)
+                        .max(control.MinWidth()? as f32),
+                    Height: (padding.Top as f32 + padding.Bottom as f32 + text_size.Height)
+                        .max(template_height as f32)
+                        .max(control.MinHeight()? as f32),
+                }
+            }
             XamlKind::RadioButton(element) => {
                 let (control, label) = element.realized.as_ref().unwrap();
+                control.ApplyTemplate()?;
                 label.SetWidth(f64::NAN)?;
                 label.SetHeight(f64::NAN)?;
                 label.Measure(available)?;
@@ -1619,24 +1641,31 @@ impl XamlElement {
             }
             XamlKind::Select(element) => {
                 let control = element.realized.as_ref().unwrap();
+                control.ApplyTemplate()?;
                 ui_element.Measure(available)?;
                 let desired = ui_element.DesiredSize()?;
+                let template_height = crate::xaml_app::theme_f64("ComboBoxMinHeight")
+                    .unwrap_or(desired.Height as f64) as f32;
                 Size {
                     Width: desired.Width.max(control.MinWidth()? as f32),
-                    // Unconstrained ComboBox measurement includes its popup
-                    // item presenter. Its collapsed template is one 32-DIP row.
-                    Height: COMBO_BOX_INTRINSIC_HEIGHT.max(control.MinHeight()? as f32),
+                    Height: template_height.max(control.MinHeight()? as f32),
                 }
             }
             XamlKind::Switch(element) => {
                 let control = element.realized.as_ref().unwrap();
+                control.ApplyTemplate()?;
                 ui_element.Measure(available)?;
                 let desired = ui_element.DesiredSize()?;
+                let template_height = TOGGLE_SWITCH_TRACK_HEIGHT
+                    + crate::xaml_app::theme_f64("ToggleSwitchPreContentMargin").unwrap_or_default()
+                        as f32
+                    + crate::xaml_app::theme_f64("ToggleSwitchPostContentMargin")
+                        .unwrap_or_default() as f32;
                 Size {
                     Width: desired.Width.max(control.MinWidth()? as f32),
                     Height: desired
                         .Height
-                        .max(TOGGLE_SWITCH_INTRINSIC_HEIGHT)
+                        .max(template_height)
                         .max(control.MinHeight()? as f32),
                 }
             }
