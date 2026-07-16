@@ -7,7 +7,7 @@ use nestix_native_winui::WINUI_BACKEND;
 
 fn main() {
     env_logger::Builder::from_env(Env::default().default_filter_or("warn")).init();
-        let backend = if cfg!(target_os = "windows") {
+    let backend = if cfg!(target_os = "windows") {
         &WINUI_BACKEND
     } else {
         default_backend()

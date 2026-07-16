@@ -1,0 +1,10 @@
+[package]
+name = "file-picker-example"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+env_logger = "0.11.8"
+nestix = { git = "https://github.com/wirelesseye/nestix.git" }
+nestix-native = { git = "https://github.com/wirelesseye/nestix-native.git", default-features = false }
+nestix-native-winui = { path = "../.." }

@@ -2,6 +2,7 @@ mod app_shim;
 pub mod button;
 pub mod checkbox;
 mod contexts;
+pub mod file_picker;
 pub mod flex_view;
 pub mod image_view;
 pub mod input;
@@ -34,6 +35,7 @@ mod bindings {
 
 pub use button::*;
 pub use checkbox::*;
+pub use file_picker::*;
 pub use flex_view::*;
 pub use image_view::*;
 pub use input::*;
@@ -140,6 +142,13 @@ impl Backend for WinUiBackend {
 
     fn create_window(&self, props: nestix_native_core::WindowProps) -> Option<nestix::Element> {
         Some(create_element::<Window>(props))
+    }
+
+    fn create_file_picker(
+        &self,
+        props: nestix_native_core::FilePickerProps,
+    ) -> Option<nestix::Element> {
+        Some(create_element::<FilePicker>(props))
     }
 
     fn create_menu(&self, props: nestix_native_core::MenuProps) -> Option<nestix::Element> {

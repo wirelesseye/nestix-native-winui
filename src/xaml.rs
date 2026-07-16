@@ -441,6 +441,32 @@ impl WindowElement {
     pub(crate) fn hwnd(&self) -> Result<windows::Win32::Foundation::HWND> {
         self.0.window_hwnd()
     }
+
+    pub(crate) fn window_id(&self) -> Result<crate::bindings::Microsoft::UI::WindowId> {
+        let kind = self.0.0.kind.borrow();
+        let XamlKind::Window(state) = &*kind else {
+            return Err(Error::new(E_NOTIMPL, "element is not a window"));
+        };
+        let window = state
+            .realized
+            .as_ref()
+            .ok_or_else(|| Error::new(E_FAIL, "WinUI window is not realized"))?;
+        window.AppWindow()?.Id()
+    }
+
+    pub(crate) fn dispatcher_queue(
+        &self,
+    ) -> Result<crate::bindings::Microsoft::UI::Dispatching::DispatcherQueue> {
+        let kind = self.0.0.kind.borrow();
+        let XamlKind::Window(state) = &*kind else {
+            return Err(Error::new(E_NOTIMPL, "element is not a window"));
+        };
+        let window = state
+            .realized
+            .as_ref()
+            .ok_or_else(|| Error::new(E_FAIL, "WinUI window is not realized"))?;
+        window.DispatcherQueue()
+    }
 }
 
 impl CanvasElement {
