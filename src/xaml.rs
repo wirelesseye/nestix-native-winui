@@ -125,6 +125,7 @@ struct ButtonState {
     title: String,
     font: ResolvedFontProps,
     padding: Option<Rect<f64>>,
+    enabled: bool,
     on_click: Option<nestix::Shared<dyn Fn()>>,
     realized: Option<RealizedButton>,
     click_handler: Rc<RefCell<Option<ClickHandlerState>>>,
@@ -535,6 +536,9 @@ impl ButtonElement {
     pub(crate) fn set_title(&self, title: String) -> Result<()> {
         self.0.set_text(title)
     }
+    pub(crate) fn set_enabled(&self, value: bool) -> Result<()> {
+        self.0.set_enabled(value)
+    }
     pub(crate) fn set_on_click(&self, handler: Option<Shared<dyn Fn()>>) -> Result<()> {
         self.0.set_button_click(handler)
     }
@@ -766,6 +770,7 @@ impl XamlElement {
             title,
             font: ResolvedFontProps::default(),
             padding: None,
+            enabled: true,
             on_click: None,
             realized: None,
             click_handler: Rc::new(RefCell::new(None)),
@@ -1124,6 +1129,12 @@ impl XamlElement {
 
     fn set_enabled(&self, enabled: bool) -> Result<()> {
         match &mut *self.0.kind.borrow_mut() {
+            XamlKind::Button(s) => {
+                s.enabled = enabled;
+                if let Some(c) = &s.realized {
+                    c.control.SetIsEnabled(enabled)?;
+                }
+            }
             XamlKind::CheckBox(s) => {
                 s.enabled = enabled;
                 if let Some((c, _)) = &s.realized {
@@ -2280,6 +2291,7 @@ impl ButtonState {
         apply_font(&label, &self.font)?;
         apply_button_padding(&control, self.padding)?;
         control.SetContent(&label)?;
+        control.SetIsEnabled(self.enabled)?;
         self.attach_click_handler(&control, self.on_click.clone())?;
         self.realized = Some(RealizedButton { control, label });
         Ok(())

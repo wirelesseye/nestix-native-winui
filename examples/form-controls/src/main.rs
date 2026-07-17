@@ -1,7 +1,11 @@
 use env_logger::Env;
-use nestix::{ContextProvider, Element, callback, component, computed, create_state, layout, mount_root};
+use nestix::{
+    ContextProvider, Element, callback, component, computed, create_state, layout, mount_root,
+};
 use nestix_native::{
-    AlignItems, BackendContext, Button, Checkbox, FlexDirection, FlexView, Input, RadioButton, Root, Select, SelectOption, Slider, StyleProvider, Switch, Text, Window, default_backend, style,
+    AlignItems, BackendContext, Button, Checkbox, FlexDirection, FlexView, Input, RadioButton,
+    Root, Select, SelectOption, Slider, StyleProvider, Switch, Text, Window, default_backend,
+    style,
 };
 use nestix_native_winui::WINUI_BACKEND;
 
@@ -175,6 +179,7 @@ fn FormControlsApp() -> Element {
                         ) {
                             Button(
                                 .title = "Save",
+                                .disabled = computed!([name] || name.get().trim().is_empty()),
                                 .on_click = callback!([
                                     name,
                                     newsletter,
@@ -200,6 +205,21 @@ fn FormControlsApp() -> Element {
                             )
                             Button(
                                 .title = "Reset",
+                                .disabled = computed!([
+                                    name,
+                                    newsletter,
+                                    notifications,
+                                    density,
+                                    country,
+                                    volume
+                                ] || {
+                                    name.get().is_empty()
+                                        && !newsletter.get()
+                                        && notifications.get()
+                                        && density.get() == "comfortable"
+                                        && country.get().is_none()
+                                        && volume.get() == 50.0
+                                }),
                                 .on_click = callback!([
                                     name,
                                     newsletter,

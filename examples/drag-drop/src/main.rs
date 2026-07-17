@@ -1,5 +1,7 @@
 use env_logger::Env;
-use nestix::{ContextProvider, Element, callback, component, computed, create_state, layout, mount_root};
+use nestix::{
+    ContextProvider, Element, callback, component, computed, create_state, layout, mount_root,
+};
 use nestix_native::{
     AlignItems, BackendContext, Color, DragContent, DragDataTypes, DragImage, DragOffer,
     DragOperation, DragOperations, DragReadError, DragSource, DragSourceOutcome, DropEvent,
@@ -21,7 +23,8 @@ fn main() {
 #[component]
 fn DragDropExample() -> Element {
     let hovering = create_state(false);
-    let status = create_state("Drag the card, or drop files, an image, or text onto it.".to_string());
+    let status =
+        create_state("Drag the card, or drop files, an image, or text onto it.".to_string());
     let mut content = DragContent::new()
         .with_text("Hello from Nestix WinUI")
         .with_image(DragImage::new(SAMPLE_IMAGE, "image/jpeg", "sample.jpg"));
