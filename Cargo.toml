@@ -6,6 +6,7 @@ edition = "2024"
 [workspace]
 resolver = "3"
 members = ["examples/*"]
+exclude = ["examples/assets"]
 
 [dependencies]
 nestix = { git = "https://github.com/wirelesseye/nestix.git" }

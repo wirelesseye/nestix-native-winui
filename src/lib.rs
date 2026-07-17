@@ -2,6 +2,7 @@ mod app_shim;
 pub mod button;
 pub mod checkbox;
 mod contexts;
+pub mod drag_drop;
 pub mod file_picker;
 pub mod flex_view;
 pub mod image_view;
@@ -35,6 +36,7 @@ mod bindings {
 
 pub use button::*;
 pub use checkbox::*;
+pub use drag_drop::*;
 pub use file_picker::*;
 pub use flex_view::*;
 pub use image_view::*;
@@ -196,5 +198,19 @@ impl Backend for WinUiBackend {
         props: nestix_native_core::ContextMenuProps,
     ) -> Option<nestix::Element> {
         Some(create_element::<ContextMenu>(props))
+    }
+
+    fn create_drag_source(
+        &self,
+        props: nestix_native_core::DragSourceProps,
+    ) -> Option<nestix::Element> {
+        Some(create_element::<DragSource>(props))
+    }
+
+    fn create_drop_target(
+        &self,
+        props: nestix_native_core::DropTargetProps,
+    ) -> Option<nestix::Element> {
+        Some(create_element::<DropTarget>(props))
     }
 }

@@ -1,5 +1,6 @@
 use std::{
     cell::RefCell,
+    collections::HashMap,
     rc::Rc,
     sync::{
         Arc, Mutex,
@@ -56,6 +57,23 @@ pub(crate) struct XamlNode {
     layout: RefCell<Option<XamlLayout>>,
     measure_callback: RefCell<Option<Shared<dyn Fn(f32, f32)>>>,
     context_menu: RefCell<Option<Rc<crate::menu::MenuData>>>,
+    realized_callbacks: RefCell<HashMap<u64, Shared<dyn Fn(UIElement)>>>,
+}
+
+static NEXT_REALIZED_CALLBACK_ID: std::sync::atomic::AtomicU64 =
+    std::sync::atomic::AtomicU64::new(1);
+
+pub(crate) struct XamlRealizedRegistration {
+    node: std::rc::Weak<XamlNode>,
+    id: u64,
+}
+
+impl Drop for XamlRealizedRegistration {
+    fn drop(&mut self) {
+        if let Some(node) = self.node.upgrade() {
+            node.realized_callbacks.borrow_mut().remove(&self.id);
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -371,6 +389,26 @@ impl PartialEq for XamlElement {
 }
 
 impl Eq for XamlElement {}
+
+impl XamlElement {
+    pub(crate) fn on_realized(
+        &self,
+        callback: Shared<dyn Fn(UIElement)>,
+    ) -> Result<XamlRealizedRegistration> {
+        let id = NEXT_REALIZED_CALLBACK_ID.fetch_add(1, Ordering::Relaxed);
+        self.0
+            .realized_callbacks
+            .borrow_mut()
+            .insert(id, callback.clone());
+        if self.is_realized() {
+            callback(self.as_ui_element()?);
+        }
+        Ok(XamlRealizedRegistration {
+            node: Rc::downgrade(&self.0),
+            id,
+        })
+    }
+}
 
 /// Defines a typed façade over the erased element identity used by Nestix handles and
 /// parent/child contexts. Component code keeps the façade, so control-specific APIs
@@ -1743,6 +1781,13 @@ impl XamlElement {
             XamlKind::TabViewItem(element) => element.realize()?,
         }
 
+        let realized = self.as_ui_element();
+        if let Ok(realized) = realized {
+            for callback in self.0.realized_callbacks.borrow().values().cloned() {
+                callback(realized.clone());
+            }
+        }
+
         let children = self.0.children.borrow().clone();
         for (index, child) in children.into_iter().enumerate() {
             child.realize()?;
@@ -1766,6 +1811,7 @@ impl XamlElement {
             layout: RefCell::new(None),
             measure_callback: RefCell::new(None),
             context_menu: RefCell::new(None),
+            realized_callbacks: RefCell::new(HashMap::new()),
         }))
     }
 
@@ -2739,12 +2785,25 @@ fn set_canvas_background(canvas: &Canvas, color: Option<nestix_native_core::Colo
 #[cfg(test)]
 mod tests {
     use super::{CanvasElement, SelectOptionData, XamlElement, XamlKind};
+    use nestix::Shared;
     use nestix_native_core::TreeContext;
+    use std::rc::Rc;
 
     #[test]
     fn typed_element_erases_without_changing_identity() {
         let canvas = CanvasElement::new().unwrap();
         assert_eq!(canvas.erased(), canvas.erased());
+    }
+
+    #[test]
+    fn realized_callback_is_retained_until_registration_is_dropped() {
+        let element = XamlElement::canvas().unwrap();
+        let callback =
+            Shared::from(Rc::new(|_: super::UIElement| {}) as Rc<dyn Fn(super::UIElement)>);
+        let registration = element.on_realized(callback).unwrap();
+        assert_eq!(element.0.realized_callbacks.borrow().len(), 1);
+        drop(registration);
+        assert!(element.0.realized_callbacks.borrow().is_empty());
     }
 
     #[test]

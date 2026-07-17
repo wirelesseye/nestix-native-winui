@@ -10,6 +10,8 @@ use nestix_native::{
 };
 use nestix_native_winui::WINUI_BACKEND;
 
+const SAMPLE_IMAGE: &[u8] = include_bytes!("../../assets/sample.jpg");
+
 fn main() {
     env_logger::Builder::from_env(Env::default().default_filter_or("warn")).init();
     let backend = if cfg!(target_os = "windows") {
@@ -100,8 +102,6 @@ fn Counter() -> Element {
             }
     );
 
-    const SAMPLE: &[u8] = include_bytes!("../assets/sample.jpg");
-
     layout! {
         StyleProvider(styles) {
             FlexView(.class = "counter") {
@@ -116,7 +116,7 @@ fn Counter() -> Element {
                 if count.get() % 2 == 0 {
                     Text("The count is even")
                 }
-                ImageView(.source = ImageSource::bytes(SAMPLE))
+                ImageView(.source = ImageSource::bytes(SAMPLE_IMAGE))
             }
         }
     }
