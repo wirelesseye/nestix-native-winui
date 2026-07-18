@@ -105,6 +105,8 @@ struct WindowState {
     scale_factor_handler: Rc<RefCell<Option<ScaleFactorHandlerState>>>,
     resize_callback: Rc<RefCell<Option<RegisteredResizeCallback>>>,
     resize_handler: Rc<RefCell<Option<ResizeHandlerState>>>,
+    close_requested_callback: Rc<RefCell<Option<RegisteredClickCallback>>>,
+    close_requested_handler: Rc<RefCell<Option<CloseRequestedHandlerState>>>,
 }
 
 #[derive(Debug, Clone)]
@@ -339,6 +341,11 @@ pub(crate) struct ResizeHandlerState {
     _revoker: EventRevoker,
 }
 
+pub(crate) struct CloseRequestedHandlerState {
+    callback_id: u64,
+    _revoker: EventRevoker,
+}
+
 pub(crate) struct TextChangedHandlerState {
     callback: RegisteredTextChangedCallback,
     _revoker: EventRevoker,
@@ -366,6 +373,15 @@ impl std::fmt::Debug for ResizeHandlerState {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter
             .debug_struct("ResizeHandlerState")
+            .field("callback_id", &self.callback_id)
+            .finish_non_exhaustive()
+    }
+}
+
+impl std::fmt::Debug for CloseRequestedHandlerState {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("CloseRequestedHandlerState")
             .field("callback_id", &self.callback_id)
             .finish_non_exhaustive()
     }
@@ -459,6 +475,9 @@ impl WindowElement {
     pub(crate) fn activate(&self) -> Result<()> {
         self.0.activate()
     }
+    pub(crate) fn close(&self) -> Result<()> {
+        self.0.close_window()
+    }
     pub(crate) fn set_title(&self, title: String) -> Result<()> {
         self.0.set_text(title)
     }
@@ -476,6 +495,9 @@ impl WindowElement {
         handler: Option<Shared<dyn Fn(nestix_native_core::dpi::Size)>>,
     ) -> Result<()> {
         self.0.set_resized(handler)
+    }
+    pub(crate) fn set_close_requested(&self, handler: Option<Shared<dyn Fn()>>) -> Result<()> {
+        self.0.set_close_requested(handler)
     }
     pub(crate) fn hwnd(&self) -> Result<windows::Win32::Foundation::HWND> {
         self.0.window_hwnd()
@@ -747,6 +769,8 @@ impl XamlElement {
             scale_factor_handler: Rc::new(RefCell::new(None)),
             resize_callback: Rc::new(RefCell::new(None)),
             resize_handler: Rc::new(RefCell::new(None)),
+            close_requested_callback: Rc::new(RefCell::new(None)),
+            close_requested_handler: Rc::new(RefCell::new(None)),
         })))
     }
 
@@ -930,8 +954,23 @@ impl XamlElement {
         Ok(())
     }
 
-    pub fn contains_child(&self, child: &XamlElement) -> bool {
-        self.0.children.borrow().contains(child)
+    pub fn insert_child_after(
+        &self,
+        child: XamlElement,
+        predecessor: Option<&XamlElement>,
+    ) -> Result<()> {
+        let previous_index = self.child_index(&child);
+        let index = predecessor
+            .and_then(|predecessor| self.child_index(predecessor))
+            .map(|index| index + 1)
+            .unwrap_or_else(|| {
+                if predecessor.is_none() {
+                    0
+                } else {
+                    previous_index.unwrap_or(self.0.children.borrow().len())
+                }
+            });
+        self.insert_child(child, index)
     }
 
     pub fn child_index(&self, child: &XamlElement) -> Option<usize> {
@@ -1371,6 +1410,17 @@ impl XamlElement {
         }
     }
 
+    fn close_window(&self) -> Result<()> {
+        let kind = self.0.kind.borrow();
+        let XamlKind::Window(element) = &*kind else {
+            return Ok(());
+        };
+        if let Some(window) = &element.realized {
+            window.Close()?;
+        }
+        Ok(())
+    }
+
     fn set_scale_factor_changed(&self, handler: Option<nestix::Shared<dyn Fn(f64)>>) -> Result<()> {
         let mut kind = self.0.kind.borrow_mut();
         let XamlKind::Window(element) = &mut *kind else {
@@ -1404,6 +1454,23 @@ impl XamlElement {
 
         if let Some(window) = element.realized.clone() {
             element.attach_resize_handler(&window)?;
+        }
+        Ok(())
+    }
+
+    fn set_close_requested(&self, handler: Option<Shared<dyn Fn()>>) -> Result<()> {
+        let mut kind = self.0.kind.borrow_mut();
+        let XamlKind::Window(element) = &mut *kind else {
+            return Ok(());
+        };
+
+        element.detach_close_requested_handler();
+        element
+            .close_requested_callback
+            .replace(handler.map(RegisteredClickCallback::register));
+
+        if let Some(window) = element.realized.clone() {
+            element.attach_close_requested_handler(&window)?;
         }
         Ok(())
     }
@@ -2065,6 +2132,7 @@ impl WindowState {
         if let Some(window) = self.realized.clone() {
             self.attach_scale_factor_handler(&window)?;
             self.attach_resize_handler(&window)?;
+            self.attach_close_requested_handler(&window)?;
         }
         Ok(())
     }
@@ -2156,6 +2224,36 @@ impl WindowState {
     fn detach_resize_handler(&mut self) {
         self.resize_handler.take();
         self.resize_callback.take();
+    }
+
+    fn attach_close_requested_handler(&mut self, window: &Window) -> Result<()> {
+        self.close_requested_handler.take();
+        let Some(callback_id) = self
+            .close_requested_callback
+            .borrow()
+            .as_ref()
+            .map(RegisteredClickCallback::id)
+        else {
+            return Ok(());
+        };
+
+        let revoker = window.AppWindow()?.Closing(move |_, args| {
+            if let Some(args) = args.as_ref() {
+                let _ = args.SetCancel(true);
+            }
+            RegisteredClickCallback::invoke(callback_id);
+        })?;
+        self.close_requested_handler
+            .replace(Some(CloseRequestedHandlerState {
+                callback_id,
+                _revoker: revoker,
+            }));
+        Ok(())
+    }
+
+    fn detach_close_requested_handler(&mut self) {
+        self.close_requested_handler.take();
+        self.close_requested_callback.take();
     }
 }
 
@@ -2906,21 +3004,22 @@ mod tests {
     }
 
     #[test]
-    fn native_child_index_excludes_missing_logical_siblings() {
+    fn insert_child_after_uses_rendered_predecessor() {
         let canvas = XamlElement::canvas().unwrap();
+        let first = XamlElement::text_block("first".into()).unwrap();
         let button = XamlElement::button("button".into()).unwrap();
-        canvas.insert_child(button.clone(), 1).unwrap();
+        canvas.append_child(first.clone()).unwrap();
+        canvas
+            .insert_child_after(button.clone(), Some(&first))
+            .unwrap();
 
         let tree = TreeContext::new();
         let parent_node = tree.create_node(false);
+        let first_node = tree.create_node(true);
         let button_node = tree.create_node(true);
-        tree.insert_child(
-            parent_node,
-            button_node,
-            canvas.child_index(&button).unwrap(),
-        );
+        tree.set_children(parent_node, &[first_node, button_node]);
 
-        assert_eq!(canvas.child_index(&button), Some(0));
+        assert_eq!(canvas.child_index(&button), Some(1));
     }
 
     #[test]

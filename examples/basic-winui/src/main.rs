@@ -23,7 +23,7 @@ fn main() {
 }
 
 #[component]
-fn ExampleApp() -> Element {
+fn ExampleApp(_: &(), element: &Element) -> Element {
     let count = create_state(0);
     let message = create_state("Ready".to_string());
     let styles = style! {
@@ -51,6 +51,7 @@ fn ExampleApp() -> Element {
                     .title = "Nestix Counter",
                     .width = 420,
                     .height = 320,
+                    .on_close_requested = callback!([element] || element.unmount()),
                     .on_resize = callback!(|size| {
                         println!("{:?}", size);
                     }),

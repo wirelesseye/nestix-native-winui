@@ -7,7 +7,11 @@ use nestix_native_core::{
 };
 use taffy::{Size, Style, prelude::FromLength};
 
-use crate::{WindowContext, contexts::ParentContext, xaml::ButtonElement};
+use crate::{
+    WindowContext,
+    contexts::{ParentContext, native_predecessor},
+    xaml::ButtonElement,
+};
 
 #[component]
 pub fn Button(props: &ButtonProps, element: &Element) {
@@ -29,11 +33,9 @@ pub fn Button(props: &ButtonProps, element: &Element) {
 
     let node_id = tree_context.create_node(true);
     element.on_place(closure!(
-        [button, parent_context] | placement | {
-            if let Some(index) = placement.index
-                && let Some(insert_child) = &parent_context.insert_child
-            {
-                insert_child(button.erased(), Some(node_id), index);
+        [element, button, parent_context] | _ | {
+            if let Some(insert_child) = &parent_context.insert_child {
+                insert_child(button.erased(), Some(node_id), native_predecessor(&element));
             } else if let Some(add_child) = &parent_context.add_child {
                 add_child(button.erased(), Some(node_id));
             }

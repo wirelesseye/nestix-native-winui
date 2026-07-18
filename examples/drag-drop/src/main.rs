@@ -21,7 +21,7 @@ fn main() {
 }
 
 #[component]
-fn DragDropExample() -> Element {
+fn DragDropExample(_: &(), element: &Element) -> Element {
     let hovering = create_state(false);
     let status =
         create_state("Drag the card, or drop files, an image, or text onto it.".to_string());
@@ -34,7 +34,12 @@ fn DragDropExample() -> Element {
 
     layout! {
         Root {
-            Window(.title = "Nestix WinUI Drag and Drop", .width = 620, .height = 420) {
+            Window(
+                .title = "Nestix WinUI Drag and Drop",
+                .width = 620,
+                .height = 420,
+                .on_close_requested = callback!([element] || element.unmount()),
+            ) {
                 FlexView(
                     .align_items = AlignItems::Center,
                     .justify_content = JustifyContent::Center,

@@ -6,7 +6,11 @@ use nestix_native_core::{
 };
 use taffy::{Size, Style, prelude::FromLength};
 
-use crate::{WindowContext, contexts::ParentContext, xaml::TextBoxElement};
+use crate::{
+    WindowContext,
+    contexts::{ParentContext, native_predecessor},
+    xaml::TextBoxElement,
+};
 
 #[component]
 pub fn Input(props: &InputProps, element: &Element) {
@@ -28,11 +32,13 @@ pub fn Input(props: &InputProps, element: &Element) {
 
     let node_id = tree_context.create_node(true);
     element.on_place(closure!(
-        [text_box, parent_context] | placement | {
-            if let Some(index) = placement.index
-                && let Some(insert_child) = &parent_context.insert_child
-            {
-                insert_child(text_box.erased(), Some(node_id), index);
+        [element, text_box, parent_context] | _ | {
+            if let Some(insert_child) = &parent_context.insert_child {
+                insert_child(
+                    text_box.erased(),
+                    Some(node_id),
+                    native_predecessor(&element),
+                );
             } else if let Some(add_child) = &parent_context.add_child {
                 add_child(text_box.erased(), Some(node_id));
             }

@@ -14,7 +14,7 @@ use taffy::{Size, Style, style_helpers::FromLength};
 
 use crate::{
     WindowContext,
-    contexts::ParentContext,
+    contexts::{ParentContext, native_predecessor},
     xaml::{ScrollViewElement, XamlElement},
 };
 
@@ -37,11 +37,9 @@ pub fn ScrollView(props: &ScrollViewProps, element: &Element) -> Element {
     let node = tree_context.create_node(false);
 
     element.on_place(closure!(
-        [scroll, parent] | placement | {
-            if let Some(index) = placement.index
-                && let Some(insert) = &parent.insert_child
-            {
-                insert(scroll.erased(), Some(node), index);
+        [element, scroll, parent] | _ | {
+            if let Some(insert) = &parent.insert_child {
+                insert(scroll.erased(), Some(node), native_predecessor(&element));
             } else if let Some(add) = &parent.add_child {
                 add(scroll.erased(), Some(node));
             }

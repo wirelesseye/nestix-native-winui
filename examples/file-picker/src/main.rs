@@ -21,13 +21,18 @@ fn main() {
 }
 
 #[component]
-fn FilePickerExample() -> Element {
+fn FilePickerExample(_: &(), element: &Element) -> Element {
     let picker = FilePickerController::new();
     let status = create_state("Choose an operation".to_string());
 
     layout! {
         Root {
-            Window(.title = "Nestix File Picker", .width = 520, .height = 360) {
+            Window(
+                .title = "Nestix File Picker",
+                .width = 520,
+                .height = 360,
+                .on_close_requested = callback!([element] || element.unmount()),
+            ) {
                 FlexView(
                     .align_items = AlignItems::Start,
                     .container(.padding = 24),

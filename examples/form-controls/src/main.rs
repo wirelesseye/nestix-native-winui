@@ -24,7 +24,7 @@ fn main() {
 }
 
 #[component]
-fn FormControlsApp() -> Element {
+fn FormControlsApp(_: &(), element: &Element) -> Element {
     let name = create_state(String::new());
     let newsletter = create_state(false);
     let notifications = create_state(true);
@@ -76,6 +76,7 @@ fn FormControlsApp() -> Element {
                     .title = "Nestix Form Controls",
                     .width = 560,
                     .height = 680,
+                    .on_close_requested = callback!([element] || element.unmount()),
                 ) {
                     FlexView(.class = "content", .view(.flex_grow = 1.0)) {
                         Text("Form controls", .class = "heading")

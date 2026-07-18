@@ -1,8 +1,10 @@
+use std::{cell::RefCell, rc::Rc};
+
 use nestix::{
     Element, callback, closure, component, components::ContextProvider, layout, scoped_effect,
 };
 use nestix_native_core::{
-    Dimension, FlexViewProps, StyleContext, StyleScope, TreeContext, matched_style,
+    ChildOrder, Dimension, FlexViewProps, StyleContext, StyleScope, TreeContext, matched_style,
     resolved_flex_view_style, style_align_items, style_align_self, style_dimension,
     style_flex_basis, style_flex_direction, style_flex_grow, style_flex_shrink, style_flex_wrap,
     style_gap, style_justify_content, style_margin, style_padding,
@@ -12,7 +14,7 @@ use taffy::{NodeId, Size, Style};
 
 use crate::{
     WindowContext,
-    contexts::ParentContext,
+    contexts::{ParentContext, native_predecessor},
     xaml::{CanvasElement, XamlElement},
 };
 
@@ -55,11 +57,9 @@ pub fn FlexView(props: &FlexViewProps, element: &Element) -> Element {
 
     let node_id = tree_context.create_node(false);
     element.on_place(closure!(
-        [canvas, parent_context] | placement | {
-            if let Some(index) = placement.index
-                && let Some(insert_child) = &parent_context.insert_child
-            {
-                insert_child(canvas.erased(), Some(node_id), index);
+        [element, canvas, parent_context] | _ | {
+            if let Some(insert_child) = &parent_context.insert_child {
+                insert_child(canvas.erased(), Some(node_id), native_predecessor(&element));
             } else if let Some(add_child) = &parent_context.add_child {
                 add_child(canvas.erased(), Some(node_id));
             }
@@ -306,6 +306,8 @@ pub fn FlexView(props: &FlexViewProps, element: &Element) -> Element {
         }
     );
 
+    let child_order = Rc::new(RefCell::new(ChildOrder::<XamlElement>::new()));
+
     layout! {
         StyleScope(
             .class = props.class.clone(),
@@ -314,41 +316,27 @@ pub fn FlexView(props: &FlexViewProps, element: &Element) -> Element {
         ) {
             ContextProvider<ParentContext>(
                 ParentContext {
-                    add_child: Some(callback!([tree_context, canvas] |child: XamlElement, child_node: Option<taffy::NodeId>| {
-                        if canvas.contains_child(&child)
-                            && let Some(child_node) = child_node
-                        {
-                            tree_context.remove_child(node_id, child_node);
-                        }
+                    add_child: Some(callback!([tree_context, canvas, child_order] |child: XamlElement, child_node: Option<taffy::NodeId>| {
+                        let predecessor = child_order.borrow().last_key();
+                        child_order.borrow_mut().place(child.clone(), child_node, predecessor);
                         let _ = canvas.append_child(child);
-                        if let Some(child_node) = child_node {
-                            tree_context.add_child(node_id, child_node);
-                            tree_context.refresh();
-                        }
+                        let nodes = child_order.borrow().taffy_nodes();
+                        tree_context.set_children(node_id, &nodes);
+                        tree_context.refresh();
                     })),
-                    insert_child: Some(callback!([tree_context, canvas] |child: XamlElement, child_node: Option<taffy::NodeId>, index: usize| {
-                        if canvas.contains_child(&child)
-                            && let Some(child_node) = child_node
-                        {
-                            tree_context.remove_child(node_id, child_node);
-                        }
-                        let _ = canvas.insert_child(child.clone(), index);
-                        if let Some(child_node) = child_node {
-                            // A Nestix placement index can include elements for which this
-                            // backend produced no native child (for example, an unsupported
-                            // control). Use the Canvas order so Taffy receives an index in its
-                            // own, filtered child list.
-                            let layout_index = canvas.child_index(&child).unwrap();
-                            tree_context.insert_child(node_id, child_node, layout_index);
-                            tree_context.refresh();
-                        }
+                    insert_child: Some(callback!([tree_context, canvas, child_order] |child: XamlElement, child_node: Option<taffy::NodeId>, predecessor: Option<XamlElement>| {
+                        child_order.borrow_mut().place(child.clone(), child_node, predecessor.clone());
+                        let _ = canvas.insert_child_after(child, predecessor.as_ref());
+                        let nodes = child_order.borrow().taffy_nodes();
+                        tree_context.set_children(node_id, &nodes);
+                        tree_context.refresh();
                     })),
-                    remove_child: Some(callback!([tree_context, canvas] |child: &XamlElement, child_node: Option<taffy::NodeId>| {
+                    remove_child: Some(callback!([tree_context, canvas, child_order] |child: &XamlElement, _: Option<taffy::NodeId>| {
                         let _ = canvas.remove_child(child);
-                        if let Some(child_node) = child_node {
-                            tree_context.remove_child(node_id, child_node);
-                            tree_context.refresh();
-                        }
+                        child_order.borrow_mut().remove(child.clone());
+                        let nodes = child_order.borrow().taffy_nodes();
+                        tree_context.set_children(node_id, &nodes);
+                        tree_context.refresh();
                     })),
                     parent_node: Some(node_id),
                 },

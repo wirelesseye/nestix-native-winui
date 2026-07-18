@@ -14,7 +14,7 @@ use taffy::{Dimension, Size, Style, prelude::FromLength};
 
 use crate::{
     WindowContext,
-    contexts::ParentContext,
+    contexts::{ParentContext, native_predecessor},
     xaml::{TabViewElement, TabViewItemElement, XamlElement},
 };
 
@@ -62,11 +62,13 @@ pub fn TabView(props: &TabViewProps, element: &Element) -> Element {
         .expect("failed to register tab content resize handler");
 
     element.on_place(closure!(
-        [tab_view, parent_context] | placement | {
-            if let Some(index) = placement.index
-                && let Some(insert_child) = &parent_context.insert_child
-            {
-                insert_child(tab_view.erased(), Some(node_id), index);
+        [element, tab_view, parent_context] | _ | {
+            if let Some(insert_child) = &parent_context.insert_child {
+                insert_child(
+                    tab_view.erased(),
+                    Some(node_id),
+                    native_predecessor(&element),
+                );
             } else if let Some(add_child) = &parent_context.add_child {
                 add_child(tab_view.erased(), Some(node_id));
             }
@@ -231,8 +233,8 @@ pub fn TabView(props: &TabViewProps, element: &Element) -> Element {
                         add_child: Some(callback!([tab_view] |child: XamlElement, _: Option<taffy::NodeId>| {
                             let _ = tab_view.append_child(child);
                         })),
-                        insert_child: Some(callback!([tab_view] |child: XamlElement, _: Option<taffy::NodeId>, index: usize| {
-                            let _ = tab_view.insert_child(child, index);
+                        insert_child: Some(callback!([tab_view] |child: XamlElement, _: Option<taffy::NodeId>, predecessor: Option<XamlElement>| {
+                            let _ = tab_view.insert_child_after(child, predecessor.as_ref());
                         })),
                         remove_child: Some(callback!([tab_view] |child: &XamlElement, _: Option<taffy::NodeId>| {
                             let _ = tab_view.remove_child(child);
@@ -258,11 +260,9 @@ pub fn TabViewItem(props: &TabViewItemProps, element: &Element) -> Element {
     element.provide_handle(item.erased());
 
     element.on_place(closure!(
-        [item, parent_context] | placement | {
-            if let Some(index) = placement.index
-                && let Some(insert_child) = &parent_context.insert_child
-            {
-                insert_child(item.erased(), None, index);
+        [element, item, parent_context] | _ | {
+            if let Some(insert_child) = &parent_context.insert_child {
+                insert_child(item.erased(), None, native_predecessor(&element));
             } else if let Some(add_child) = &parent_context.add_child {
                 add_child(item.erased(), None);
             }

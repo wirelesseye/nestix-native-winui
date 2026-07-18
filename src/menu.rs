@@ -43,7 +43,7 @@ use crate::{
             System::{VirtualKey, VirtualKeyModifiers},
         },
     },
-    contexts::ParentContext,
+    contexts::{ParentContext, native_predecessor},
     xaml::{MenuBarElement, XamlElement},
     xaml_app::is_xaml_running,
     xaml_events::RegisteredClickCallback,
@@ -549,11 +549,13 @@ pub fn MenuBar(props: &MenuBarProps, element: &Element) -> Element {
         let node_id = tree.create_node(true);
 
         element.on_place(closure!(
-            [control, parent] | placement | {
-                if let Some(index) = placement.index
-                    && let Some(insert_child) = &parent.insert_child
-                {
-                    insert_child(control.erased(), Some(node_id), index);
+            [element, control, parent] | _ | {
+                if let Some(insert_child) = &parent.insert_child {
+                    insert_child(
+                        control.erased(),
+                        Some(node_id),
+                        native_predecessor(&element),
+                    );
                 } else if let Some(add_child) = &parent.add_child {
                     add_child(control.erased(), Some(node_id));
                 }

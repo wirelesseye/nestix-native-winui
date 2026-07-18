@@ -78,6 +78,16 @@ pub fn Window(props: &WindowProps, element: &Element) -> Element {
         })))
         .expect("failed to watch WinUI window size");
 
+    window
+        .set_close_requested(Some(callback!(
+            [props.on_close_requested] || {
+                if let Some(on_close_requested) = on_close_requested.get() {
+                    on_close_requested();
+                }
+            }
+        )))
+        .expect("failed to watch WinUI window close requests");
+
     scoped_effect!(
         element,
         [
@@ -104,7 +114,9 @@ pub fn Window(props: &WindowProps, element: &Element) -> Element {
     );
 
     element.on_unmount(closure!(
-        [window_registration] || {
+        [window, window_registration] || {
+            let _ = window.set_close_requested(None);
+            let _ = window.close();
             window_registration.unregister();
         }
     ));

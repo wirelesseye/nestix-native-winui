@@ -66,6 +66,7 @@ fn main() {
         "Microsoft.UI.Xaml.LaunchActivatedEventArgs".to_string(),
         "Microsoft.UI.Xaml.ResourceDictionary".to_string(),
         "Microsoft.UI.Windowing.AppWindow".to_string(),
+        "Microsoft.UI.Windowing.AppWindowClosingEventArgs".to_string(),
         "Microsoft.UI.WindowId".to_string(),
         "Microsoft.UI.Dispatching.DispatcherQueue".to_string(),
         "Microsoft.UI.Dispatching.DispatcherQueueHandler".to_string(),

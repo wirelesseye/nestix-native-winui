@@ -9,7 +9,11 @@ use taffy::{
     prelude::{FromLength, FromPercent, TaffyAuto},
 };
 
-use crate::{WindowContext, contexts::ParentContext, xaml::ImageElement};
+use crate::{
+    WindowContext,
+    contexts::{ParentContext, native_predecessor},
+    xaml::ImageElement,
+};
 
 #[component]
 pub fn ImageView(props: &ImageViewProps, element: &Element) {
@@ -29,11 +33,9 @@ pub fn ImageView(props: &ImageViewProps, element: &Element) {
     element.provide_handle(image.erased());
     let node_id = tree_context.create_node(true);
     element.on_place(closure!(
-        [image, parent_context] | placement | {
-            if let Some(index) = placement.index
-                && let Some(insert) = &parent_context.insert_child
-            {
-                insert(image.erased(), Some(node_id), index);
+        [element, image, parent_context] | _ | {
+            if let Some(insert) = &parent_context.insert_child {
+                insert(image.erased(), Some(node_id), native_predecessor(&element));
             } else if let Some(add) = &parent_context.add_child {
                 add(image.erased(), Some(node_id));
             }
