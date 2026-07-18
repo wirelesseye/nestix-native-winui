@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use nestix::{Element, Shared};
+use nestix::{Placement, Shared};
 use taffy::NodeId;
 
 use crate::{xaml::XamlElement, xaml_app::XamlApp};
@@ -24,12 +24,21 @@ pub(crate) struct ParentContext {
     pub parent_node: Option<NodeId>,
 }
 
-/// Returns the nearest preceding host handle from the same Nestix list,
-/// skipping logical siblings that do not render a XAML element.
-pub(crate) fn native_predecessor(element: &Element) -> Option<XamlElement> {
-    element
-        .previous_siblings()
-        .into_iter()
-        .find_map(|sibling| sibling.last_handle())
-        .and_then(|handle| handle.downcast_ref::<XamlElement>().cloned())
+impl ParentContext {
+    pub fn place_child(
+        &self,
+        child: XamlElement,
+        child_node: Option<NodeId>,
+        placement: &Placement,
+    ) {
+        if let Some(insert_child) = &self.insert_child {
+            let predecessor = placement
+                .pred
+                .as_ref()
+                .and_then(|handle| handle.downcast_ref::<XamlElement>().cloned());
+            insert_child(child, child_node, predecessor);
+        } else if let Some(add_child) = &self.add_child {
+            add_child(child, child_node);
+        }
+    }
 }

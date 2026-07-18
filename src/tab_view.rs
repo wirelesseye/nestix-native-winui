@@ -14,7 +14,7 @@ use taffy::{Dimension, Size, Style, prelude::FromLength};
 
 use crate::{
     WindowContext,
-    contexts::{ParentContext, native_predecessor},
+    contexts::ParentContext,
     xaml::{TabViewElement, TabViewItemElement, XamlElement},
 };
 
@@ -62,16 +62,8 @@ pub fn TabView(props: &TabViewProps, element: &Element) -> Element {
         .expect("failed to register tab content resize handler");
 
     element.on_place(closure!(
-        [element, tab_view, parent_context] | _ | {
-            if let Some(insert_child) = &parent_context.insert_child {
-                insert_child(
-                    tab_view.erased(),
-                    Some(node_id),
-                    native_predecessor(&element),
-                );
-            } else if let Some(add_child) = &parent_context.add_child {
-                add_child(tab_view.erased(), Some(node_id));
-            }
+        [tab_view, parent_context] | placement | {
+            parent_context.place_child(tab_view.erased(), Some(node_id), placement);
         }
     ));
 
@@ -260,12 +252,8 @@ pub fn TabViewItem(props: &TabViewItemProps, element: &Element) -> Element {
     element.provide_handle(item.erased());
 
     element.on_place(closure!(
-        [element, item, parent_context] | _ | {
-            if let Some(insert_child) = &parent_context.insert_child {
-                insert_child(item.erased(), None, native_predecessor(&element));
-            } else if let Some(add_child) = &parent_context.add_child {
-                add_child(item.erased(), None);
-            }
+        [item, parent_context] | placement | {
+            parent_context.place_child(item.erased(), None, placement);
         }
     ));
 

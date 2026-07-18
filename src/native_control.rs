@@ -6,11 +6,7 @@ use nestix_native_core::{
 };
 use taffy::{NodeId, Size, Style, prelude::FromLength};
 
-use crate::{
-    WindowContext,
-    contexts::{ParentContext, native_predecessor},
-    xaml::XamlElement,
-};
+use crate::{WindowContext, contexts::ParentContext, xaml::XamlElement};
 
 pub(crate) fn mount(
     element: &Element,
@@ -25,12 +21,8 @@ pub(crate) fn mount(
     element.provide_handle(control.clone());
     let node_id = tree_context.create_node(true);
     element.on_place(closure!(
-        [element, control, parent_context] | _ | {
-            if let Some(insert_child) = &parent_context.insert_child {
-                insert_child(control.clone(), Some(node_id), native_predecessor(&element));
-            } else if let Some(add_child) = &parent_context.add_child {
-                add_child(control.clone(), Some(node_id));
-            }
+        [control, parent_context] | placement | {
+            parent_context.place_child(control.clone(), Some(node_id), placement);
         }
     ));
     element.on_unmount(closure!(

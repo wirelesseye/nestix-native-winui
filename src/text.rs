@@ -7,11 +7,7 @@ use nestix_native_core::{
 };
 use taffy::{Size, Style, prelude::FromLength};
 
-use crate::{
-    WindowContext,
-    contexts::{ParentContext, native_predecessor},
-    xaml::TextBlockElement,
-};
+use crate::{WindowContext, contexts::ParentContext, xaml::TextBlockElement};
 
 #[component]
 pub fn Text(props: &TextProps, element: &Element) {
@@ -34,16 +30,8 @@ pub fn Text(props: &TextProps, element: &Element) {
 
     let node_id = tree_context.create_node(true);
     element.on_place(closure!(
-        [element, text_block, parent_context] | _ | {
-            if let Some(insert_child) = &parent_context.insert_child {
-                insert_child(
-                    text_block.erased(),
-                    Some(node_id),
-                    native_predecessor(&element),
-                );
-            } else if let Some(add_child) = &parent_context.add_child {
-                add_child(text_block.erased(), Some(node_id));
-            }
+        [text_block, parent_context] | placement | {
+            parent_context.place_child(text_block.erased(), Some(node_id), placement);
         }
     ));
 

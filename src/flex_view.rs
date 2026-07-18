@@ -14,7 +14,7 @@ use taffy::{NodeId, Size, Style};
 
 use crate::{
     WindowContext,
-    contexts::{ParentContext, native_predecessor},
+    contexts::ParentContext,
     xaml::{CanvasElement, XamlElement},
 };
 
@@ -57,12 +57,8 @@ pub fn FlexView(props: &FlexViewProps, element: &Element) -> Element {
 
     let node_id = tree_context.create_node(false);
     element.on_place(closure!(
-        [element, canvas, parent_context] | _ | {
-            if let Some(insert_child) = &parent_context.insert_child {
-                insert_child(canvas.erased(), Some(node_id), native_predecessor(&element));
-            } else if let Some(add_child) = &parent_context.add_child {
-                add_child(canvas.erased(), Some(node_id));
-            }
+        [canvas, parent_context] | placement | {
+            parent_context.place_child(canvas.erased(), Some(node_id), placement);
         }
     ));
 
