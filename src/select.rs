@@ -54,11 +54,27 @@ pub fn Select(props: &SelectProps, element: &Element) -> Element {
         }
     );
     layout! {
-        ContextProvider<SelectContext>(SelectContext {
-            upsert: callback!([control] |id: u64, option: SelectOptionData| { let _ = control.upsert_option(id, option); }),
-            move_to: callback!([control] |id: u64, index: usize| { let _ = control.move_option(id, index); }),
-            remove: callback!([control] |id: u64| { let _ = control.remove_option(id); }),
-        }) { $(props.children.clone()) }
+        ContextProvider<SelectContext>(
+            SelectContext {
+                upsert: callback!(
+                    [control] |id: u64, option: SelectOptionData| {
+                        let _ = control.upsert_option(id, option);
+                    }
+                ),
+                move_to: callback!(
+                    [control] |id: u64, index: usize| {
+                        let _ = control.move_option(id, index);
+                    }
+                ),
+                remove: callback!(
+                    [control] |id: u64| {
+                        let _ = control.remove_option(id);
+                    }
+                )
+            },
+        ) {
+            $(props.children.clone())
+        }
     }
 }
 

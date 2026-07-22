@@ -84,26 +84,27 @@ fn FormControlsApp(_: &(), element: &Element) -> Element {
                             "Controlled native components exposed through nestix-native.",
                             .class = "description",
                         )
-
                         Text("Name", .class = "label")
                         Input(
                             .class = "field",
                             .view(.width = 320),
                             .value = name.clone(),
-                            .on_text_change = callback!([name] |value: &str| {
-                                name.set(value.to_string());
-                            }),
+                            .on_text_change = callback!(
+                                [name] |value: &str| {
+                                    name.set(value.to_string());
+                                }
+                            ),
                         )
-
                         Checkbox(
                             "Subscribe to the newsletter",
                             .class = "field",
                             .checked = newsletter.clone(),
-                            .on_checked_change = callback!([newsletter] |checked| {
-                                newsletter.set(checked);
-                            }),
+                            .on_checked_change = callback!(
+                                [newsletter] | checked | {
+                                    newsletter.set(checked);
+                                }
+                            ),
                         )
-
                         Text("Interface density", .class = "label")
                         FlexView(
                             .class = "field",
@@ -115,35 +116,43 @@ fn FormControlsApp(_: &(), element: &Element) -> Element {
                                 .class = "choice",
                                 .group = "density",
                                 .selected = computed!([density] || density.get() == "compact"),
-                                .on_select = callback!([density] || {
-                                    density.set("compact".to_string());
-                                }),
+                                .on_select = callback!(
+                                    [density] || {
+                                        density.set("compact".to_string());
+                                    }
+                                ),
                             )
                             RadioButton(
                                 "Comfortable",
                                 .group = "density",
                                 .selected = computed!([density] || density.get() == "comfortable"),
-                                .on_select = callback!([density] || {
-                                    density.set("comfortable".to_string());
-                                }),
+                                .on_select = callback!(
+                                    [density] || {
+                                        density.set("comfortable".to_string());
+                                    }
+                                ),
                             )
                         }
-
                         Text("Country", .class = "label")
                         Select(
                             .class = "field",
                             .view(.width = 220),
                             .value = country.clone(),
-                            .on_value_change = callback!([country] |value: &str| {
-                                country.set(Some(value.to_string()));
-                            }),
+                            .on_value_change = callback!(
+                                [country] |value: &str| {
+                                    country.set(Some(value.to_string()));
+                                }
+                            ),
                         ) {
                             SelectOption("Australia", .value = "au")
                             SelectOption("New Zealand", .value = "nz")
                             SelectOption("United States", .value = "us")
-                            SelectOption("Unavailable choice", .value = "disabled", .enabled = false)
+                            SelectOption(
+                                "Unavailable choice",
+                                .value = "disabled",
+                                .enabled = false,
+                            )
                         }
-
                         Text(
                             computed!([volume] || format!("Volume: {:.0}", volume.get())),
                             .class = "label",
@@ -154,11 +163,12 @@ fn FormControlsApp(_: &(), element: &Element) -> Element {
                             .value = volume.clone(),
                             .minimum = 0.0,
                             .maximum = 100.0,
-                            .on_value_change = callback!([volume] |value| {
-                                volume.set(value);
-                            }),
+                            .on_value_change = callback!(
+                                [volume] | value | {
+                                    volume.set(value);
+                                }
+                            ),
                         )
-
                         FlexView(
                             .class = "field",
                             .flex_direction = FlexDirection::Row,
@@ -167,12 +177,13 @@ fn FormControlsApp(_: &(), element: &Element) -> Element {
                             Text("Enable notifications", .class = "choice")
                             Switch(
                                 .checked = notifications.clone(),
-                                .on_checked_change = callback!([notifications] |checked| {
-                                    notifications.set(checked);
-                                }),
+                                .on_checked_change = callback!(
+                                    [notifications] | checked | {
+                                        notifications.set(checked);
+                                    }
+                                ),
                             )
                         }
-
                         FlexView(
                             .class = "actions",
                             .flex_direction = FlexDirection::Row,
@@ -181,66 +192,65 @@ fn FormControlsApp(_: &(), element: &Element) -> Element {
                             Button(
                                 .title = "Save",
                                 .disabled = computed!([name] || name.get().trim().is_empty()),
-                                .on_click = callback!([
-                                    name,
-                                    newsletter,
-                                    notifications,
-                                    density,
-                                    country,
-                                    volume,
-                                    status
-                                ] || {
-                                    let country = country
-                                        .get()
-                                        .unwrap_or_else(|| "not selected".to_string());
-                                    status.set(format!(
-                                        "Saved: name={:?}, newsletter={}, notifications={}, density={}, country={}, volume={:.0}",
-                                        name.get(),
-                                        newsletter.get(),
-                                        notifications.get(),
-                                        density.get(),
+                                .on_click = callback!(
+                                    [
+                                        name,
+                                        newsletter,
+                                        notifications,
+                                        density,
                                         country,
-                                        volume.get(),
-                                    ));
-                                }),
+                                        volume,
+                                        status,
+                                    ] || {
+                                        let country = country
+                                            .get()
+                                            .unwrap_or_else(|| "not selected".to_string());
+                                        status.set(format!(
+                                            "Saved: name={:?}, newsletter={}, notifications={}, density={}, country={}, volume={:.0}",
+                                            name.get(),
+                                            newsletter.get(),
+                                            notifications.get(),
+                                            density.get(),
+                                            country,
+                                            volume.get(),
+                                        ));
+                                    }
+                                ),
                             )
                             Button(
                                 .title = "Reset",
-                                .disabled = computed!([
-                                    name,
-                                    newsletter,
-                                    notifications,
-                                    density,
-                                    country,
-                                    volume
-                                ] || {
-                                    name.get().is_empty()
-                                        && !newsletter.get()
-                                        && notifications.get()
-                                        && density.get() == "comfortable"
-                                        && country.get().is_none()
-                                        && volume.get() == 50.0
-                                }),
-                                .on_click = callback!([
-                                    name,
-                                    newsletter,
-                                    notifications,
-                                    density,
-                                    country,
-                                    volume,
-                                    status
-                                ] || {
-                                    name.set(String::new());
-                                    newsletter.set(false);
-                                    notifications.set(true);
-                                    density.set("comfortable".to_string());
-                                    country.set(None);
-                                    volume.set(50.0);
-                                    status.set("Form reset.".to_string());
-                                }),
+                                .disabled = computed!(
+                                    [name, newsletter, notifications, density, country, volume]
+                                        || {
+                                            name.get().is_empty()
+                                                && !newsletter.get()
+                                                && notifications.get()
+                                                && density.get() == "comfortable"
+                                                && country.get().is_none()
+                                                && volume.get() == 50.0
+                                        }
+                                ),
+                                .on_click = callback!(
+                                    [
+                                        name,
+                                        newsletter,
+                                        notifications,
+                                        density,
+                                        country,
+                                        volume,
+                                        status
+                                    ] || {
+                                        name.set(String::new());
+                                        newsletter.set(false);
+                                        notifications.set(true);
+                                        density.set("comfortable".to_string());
+                                        country.set(None);
+                                        volume.set(50.0);
+                                        status.set("Form reset.".to_string());
+                                    }
+                                ),
                             )
                         }
-
                         Text(status)
                     }
                 }

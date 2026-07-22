@@ -146,27 +146,31 @@ pub fn ScrollView(props: &ScrollViewProps, element: &Element) -> Element {
         StyleScope(
             .class = props.class.clone(),
             .default_classes = DEFAULT_CLASSES,
-            .effective_style = effective_style
+            .effective_style = effective_style,
         ) {
             ContextProvider<TreeContext>(subtree_context.clone()) {
-                ContextProvider<ParentContext>(ParentContext {
-                    add_child: Some(callback!([scroll, subtree_context] |child: XamlElement, child_node: Option<taffy::NodeId>| {
-                        let _ = scroll.append_child(child);
-                        if let Some(child_node) = child_node {
-                            subtree_context.add_child(subtree_root, child_node);
-                            subtree_context.refresh();
-                        }
-                    })),
-                    insert_child: None,
-                    remove_child: Some(callback!([scroll, subtree_context] |child: &XamlElement, child_node: Option<taffy::NodeId>| {
-                        let _ = scroll.remove_child(child);
-                        if let Some(child_node) = child_node {
-                            subtree_context.remove_child(subtree_root, child_node);
-                            subtree_context.refresh();
-                        }
-                    })),
-                    parent_node: Some(subtree_root),
-                }) {
+                ContextProvider<ParentContext>(
+                    ParentContext {
+                        add_child: Some(callback!([scroll, subtree_context] |child: XamlElement,
+                        child_node: Option<taffy::NodeId> | {
+                            let _ = scroll.append_child(child);
+                            if let Some(child_node) = child_node {
+                                subtree_context.add_child(subtree_root, child_node);
+                                subtree_context.refresh();
+                            }
+                        })),
+                        insert_child: None,
+                        remove_child: Some(callback!([scroll, subtree_context] |child: &XamlElement,
+                        child_node: Option<taffy::NodeId> | {
+                            let _ = scroll.remove_child(child);
+                            if let Some(child_node) = child_node {
+                                subtree_context.remove_child(subtree_root, child_node);
+                                subtree_context.refresh();
+                            }
+                        })),
+                        parent_node: Some(subtree_root)
+                    },
+                ) {
                     $(props.children.clone().map(|element| Layout::from(element.clone())))
                 }
             }

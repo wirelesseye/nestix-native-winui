@@ -29,7 +29,8 @@ pub fn Window(props: &WindowProps, element: &Element) -> Element {
     let scale_factor = create_state(1.0);
     let tree_context = Rc::new(TreeContext::new());
 
-    let window = WindowElement::new(props.title.get()).expect("failed to create WinUI window");
+    let window = WindowElement::new(props.title.get(), props.title_bar_mode.get())
+        .expect("failed to create WinUI window");
     let window_context = Rc::new(WindowContext {
         scale_factor: scale_factor.clone().into_readonly(),
         window: window.clone(),
@@ -52,6 +53,13 @@ pub fn Window(props: &WindowProps, element: &Element) -> Element {
         element,
         [window, props.title] || {
             let _ = window.set_title(title.get());
+        }
+    );
+
+    scoped_effect!(
+        element,
+        [window, props.title_bar_mode] || {
+            let _ = window.set_title_bar_mode(title_bar_mode.get());
         }
     );
 
@@ -127,7 +135,8 @@ pub fn Window(props: &WindowProps, element: &Element) -> Element {
                 StyleScope(.class = props.class.clone(), .default_classes = DEFAULT_CLASSES) {
                     ContextProvider<ParentContext>(
                         ParentContext {
-                            add_child: Some(callback!([window, tree_context, props.width, props.height] |child: XamlElement, child_node: Option<taffy::NodeId>| {
+                            add_child: Some(callback!([window, tree_context, props.width, props.height] |child: XamlElement,
+                            child_node: Option<taffy::NodeId> | {
                                 let _ = child.set_layout(0.0, 0.0, width.get(), height.get());
                                 let _ = window.append_child(child);
                                 tree_context.set_root_node(child_node);
@@ -143,11 +152,12 @@ pub fn Window(props: &WindowProps, element: &Element) -> Element {
                                 }
                             })),
                             insert_child: None,
-                            remove_child: Some(callback!([window, tree_context] |child: &XamlElement, _: Option<taffy::NodeId>| {
+                            remove_child: Some(callback!([window, tree_context] |child: &XamlElement,
+                            _: Option<taffy::NodeId> | {
                                 let _ = window.remove_child(child);
                                 tree_context.set_root_node(None);
                             })),
-                            parent_node: None,
+                            parent_node: None
                         },
                     ) {
                         $(props.children.clone().map(|element| Layout::from(element.clone())))

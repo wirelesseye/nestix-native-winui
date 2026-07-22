@@ -36,42 +36,52 @@ fn ContextMenuExample(_: &(), element: &Element) -> Element {
             MenuItem(
                 "Open",
                 .shortcut = Shortcut::primary('O'),
-                .on_activate = callback!([status] || {
-                    status.set("Open selected".to_string());
-                }),
+                .on_activate = callback!(
+                    [status] || {
+                        status.set("Open selected".to_string());
+                    }
+                ),
             )
             MenuItem(
                 "Rename",
-                .on_activate = callback!([status] || {
-                    status.set("Rename selected".to_string());
-                }),
+                .on_activate = callback!(
+                    [status] || {
+                        status.set("Rename selected".to_string());
+                    }
+                ),
             )
             MenuItem("Unavailable command", .enabled = false)
             MenuSeparator()
             CheckMenuItem(
                 "Show details",
                 .checked = show_details.clone(),
-                .on_checked_change = callback!([show_details, status] |checked| {
-                    show_details.set(checked);
-                    status.set(format!(
-                        "Details {}",
-                        if checked { "shown" } else { "hidden" }
-                    ));
-                }),
+                .on_checked_change = callback!(
+                    [show_details, status] | checked | {
+                        show_details.set(checked);
+                        status.set(format!(
+                            "Details {}",
+                            if checked { "shown" } else { "hidden" }
+                        ));
+                    }
+                ),
             )
             CheckMenuItem(
                 "Show advanced command",
                 .checked = show_advanced.clone(),
-                .on_checked_change = callback!([show_advanced] |checked| {
-                    show_advanced.set(checked);
-                }),
+                .on_checked_change = callback!(
+                    [show_advanced] | checked | {
+                        show_advanced.set(checked);
+                    }
+                ),
             )
             MenuItem(
                 "Advanced command",
                 .visible = show_advanced.clone(),
-                .on_activate = callback!([status] || {
-                    status.set("Advanced command selected".to_string());
-                }),
+                .on_activate = callback!(
+                    [status] || {
+                        status.set("Advanced command selected".to_string());
+                    }
+                ),
             )
             MenuSeparator()
             Submenu("Sort by") {
@@ -79,19 +89,23 @@ fn ContextMenuExample(_: &(), element: &Element) -> Element {
                     "Name",
                     .group = "sort-order",
                     .selected = computed!([sort_order] || sort_order.get() == "Name"),
-                    .on_select = callback!([sort_order, status] || {
-                        sort_order.set("Name".to_string());
-                        status.set("Sorting by name".to_string());
-                    }),
+                    .on_select = callback!(
+                        [sort_order, status] || {
+                            sort_order.set("Name".to_string());
+                            status.set("Sorting by name".to_string());
+                        }
+                    ),
                 )
                 RadioMenuItem(
                     "Date",
                     .group = "sort-order",
                     .selected = computed!([sort_order] || sort_order.get() == "Date"),
-                    .on_select = callback!([sort_order, status] || {
-                        sort_order.set("Date".to_string());
-                        status.set("Sorting by date".to_string());
-                    }),
+                    .on_select = callback!(
+                        [sort_order, status] || {
+                            sort_order.set("Date".to_string());
+                            status.set("Sorting by date".to_string());
+                        }
+                    ),
                 )
             }
         }
@@ -111,10 +125,7 @@ fn ContextMenuExample(_: &(), element: &Element) -> Element {
                     .bg_color = Some(Color::RGB(RGBColor::from_rgb(238, 242, 247))),
                     .view(.flex_grow = 1.0),
                 ) {
-                    ContextMenu(
-                        .menu = menu,
-                        .controller = context_menu.clone(),
-                    ) {
+                    ContextMenu(.menu = menu, .controller = context_menu.clone()) {
                         FlexView(
                             .align_items = AlignItems::Center,
                             .justify_content = JustifyContent::Center,
@@ -125,21 +136,29 @@ fn ContextMenuExample(_: &(), element: &Element) -> Element {
                             Text("Right-click this card or use the button")
                             Button(
                                 .title = "Show context menu",
-                                .on_click = callback!([context_menu, status] || {
-                                    if let Err(error) = context_menu.show(ContextMenuPosition::Cursor) {
-                                        status.set(format!("Could not show menu: {error}"));
+                                .on_click = callback!(
+                                    [context_menu, status] || {
+                                        if let Err(error) =
+                                            context_menu.show(ContextMenuPosition::Cursor)
+                                        {
+                                            status.set(format!("Could not show menu: {error}"));
+                                        }
                                     }
-                                }),
+                                ),
                             )
                             Text("Try commands, checkboxes, radio items, and the submenu.")
                             Text(computed!([status] || format!("Status: {}", status.get())))
-                            Text(computed!([show_details, sort_order] || {
-                                if show_details.get() {
-                                    format!("Details: sorted by {}", sort_order.get())
-                                } else {
-                                    "Details are hidden".to_string()
-                                }
-                            }))
+                            Text(
+                                computed!(
+                                    [show_details, sort_order] || {
+                                        if show_details.get() {
+                                            format!("Details: sorted by {}", sort_order.get())
+                                        } else {
+                                            "Details are hidden".to_string()
+                                        }
+                                    }
+                                ),
+                            )
                         }
                     }
                 }

@@ -74,14 +74,12 @@ fn ExampleApp(_: &(), element: &Element) -> Element {
                 ) {
                     FlexView(.class = "app", .view(.flex_grow = 1.0)) {
                         TabView(.view(.flex_grow = 1.0)) {
-                            TabViewItem(
-                                .id = "counter",
-                                .title = "Counter",
-                            ) { Counter }
-                            TabViewItem(
-                                .id = "todo_list",
-                                .title = "Todo List",
-                            ) { TodoList }
+                            TabViewItem(.id = "counter", .title = "Counter") {
+                                Counter
+                            }
+                            TabViewItem(.id = "todo_list", .title = "Todo List") {
+                                TodoList
+                            }
                         }
                     }
                 }
@@ -109,10 +107,12 @@ fn Counter() -> Element {
                 Text(computed!([count] || format!("Count: {}", count.get())))
                 Button(
                     .title = "Increment",
-                    .on_click = callback!([count] || {
-                        count.mutate(|count| *count += 1);
-                        bg_color.set(random_color());
-                    }),
+                    .on_click = callback!(
+                        [count] || {
+                            count.mutate(|count| *count += 1);
+                            bg_color.set(random_color());
+                        }
+                    ),
                 )
                 if count.get() % 2 == 0 {
                     Text("The count is even")
@@ -185,11 +185,7 @@ fn TodoList() -> Element {
                 .flex_direction = FlexDirection::Row,
                 .align_items = AlignItems::Center,
             ) {
-                Input(
-                    .view(.flex_grow = 1.0)
-                    .value = input_text,
-                    .on_text_change = on_text_change,
-                )
+                Input(.view(.flex_grow = 1.0).value = input_text, .on_text_change = on_text_change)
                 Button(.title = "Add", .on_click = add)
             }
             ScrollView(.view(.flex_grow = 1.0)) {
@@ -237,35 +233,37 @@ fn TodoListItem(props: &TodoListItemProps) -> Element {
     destructure!((key, value) <- props.data);
 
     layout! {
-        FlexView(.class = "todo_item", .flex_direction = FlexDirection::Row, .align_items = AlignItems::Center) {
+        FlexView(
+            .class = "todo_item",
+            .flex_direction = FlexDirection::Row,
+            .align_items = AlignItems::Center,
+        ) {
             if is_edit.get() {
                 Input(
                     .value = value.clone(),
-                    .on_text_change = callback!([key, props.set_content] |value: &str| {
-                        set_content(&key.get(), value.to_string());
-                    }),
+                    .on_text_change = callback!(
+                        [key, props.set_content] |value: &str| {
+                            set_content(&key.get(), value.to_string());
+                        }
+                    ),
                     .view(.flex_grow = 1.0),
                 )
             } else {
                 Text(value.clone(), .view(.flex_grow = 1.0))
             }
-
             Button(
                 .title = "Delete",
-                .on_click = callback!([key, props.remove] || remove(&key.get()))
+                .on_click = callback!([key, props.remove] || remove(&key.get())),
             )
             Button(
                 .title = "Up",
-                .on_click = callback!([key, props.move_up] || move_up(&key.get()))
+                .on_click = callback!([key, props.move_up] || move_up(&key.get())),
             )
             Button(
                 .title = "Down",
-                .on_click = callback!([key, props.move_down] || move_down(&key.get()))
+                .on_click = callback!([key, props.move_down] || move_down(&key.get())),
             )
-            Button(
-                .title = "Edit",
-                .on_click = toggle_edit
-            )
+            Button(.title = "Edit", .on_click = toggle_edit)
         }
     }
 }

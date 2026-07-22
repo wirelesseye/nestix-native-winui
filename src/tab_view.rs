@@ -217,21 +217,25 @@ pub fn TabView(props: &TabViewProps, element: &Element) -> Element {
         StyleScope(
             .class = props.class.clone(),
             .default_classes = DEFAULT_CLASSES,
-            .effective_style = effective_style
+            .effective_style = effective_style,
         ) {
             ContextProvider<TabViewContext>(tab_context) {
                 ContextProvider<ParentContext>(
                     ParentContext {
-                        add_child: Some(callback!([tab_view] |child: XamlElement, _: Option<taffy::NodeId>| {
+                        add_child: Some(callback!([tab_view] |child: XamlElement,
+                        _: Option<taffy::NodeId> | {
                             let _ = tab_view.append_child(child);
                         })),
-                        insert_child: Some(callback!([tab_view] |child: XamlElement, _: Option<taffy::NodeId>, predecessor: Option<XamlElement>| {
+                        insert_child: Some(callback!([tab_view] |child: XamlElement,
+                        _: Option<taffy::NodeId>,
+                        predecessor: Option<XamlElement> | {
                             let _ = tab_view.insert_child_after(child, predecessor.as_ref());
                         })),
-                        remove_child: Some(callback!([tab_view] |child: &XamlElement, _: Option<taffy::NodeId>| {
+                        remove_child: Some(callback!([tab_view] |child: &XamlElement,
+                        _: Option<taffy::NodeId> | {
                             let _ = tab_view.remove_child(child);
                         })),
-                        parent_node: Some(node_id),
+                        parent_node: Some(node_id)
                     },
                 ) {
                     $(props.children.clone())
@@ -307,7 +311,8 @@ pub fn TabViewItem(props: &TabViewItemProps, element: &Element) -> Element {
             ContextProvider<TreeContext>(subtree_context.clone()) {
                 ContextProvider<ParentContext>(
                     ParentContext {
-                        add_child: Some(callback!([item, tab_context.content_size] |child: XamlElement, child_node: Option<taffy::NodeId>| {
+                        add_child: Some(callback!([item, tab_context.content_size] |child: XamlElement,
+                        child_node: Option<taffy::NodeId> | {
                             let _ = item.append_child(child);
                             subtree_context.set_root_node(child_node);
                             if let Some(child_node) = child_node {
@@ -324,7 +329,7 @@ pub fn TabViewItem(props: &TabViewItemProps, element: &Element) -> Element {
                         })),
                         insert_child: None,
                         remove_child: None,
-                        parent_node: None,
+                        parent_node: None
                     },
                 ) {
                     $(props.children.clone().map(|element| Layout::from(element.clone())))

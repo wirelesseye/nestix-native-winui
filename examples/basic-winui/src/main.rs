@@ -68,17 +68,21 @@ fn ExampleApp(_: &(), element: &Element) -> Element {
                             ) {
                                 Button(
                                     .title = "Increment",
-                                    .on_click = callback!([count, message] || {
-                                        count.mutate(|count| *count += 1);
-                                        message.set("Counter updated".to_string());
-                                    })
+                                    .on_click = callback!(
+                                        [count, message] || {
+                                            count.mutate(|count| *count += 1);
+                                            message.set("Counter updated".to_string());
+                                        }
+                                    ),
                                 )
                                 Button(
                                     .title = "Reset",
-                                    .on_click = callback!([count, message] || {
-                                        count.set(0);
-                                        message.set("Ready".to_string());
-                                    })
+                                    .on_click = callback!(
+                                        [count, message] || {
+                                            count.set(0);
+                                            message.set("Ready".to_string());
+                                        }
+                                    ),
                                 )
                             }
                             FlexView(

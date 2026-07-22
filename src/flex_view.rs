@@ -308,33 +308,43 @@ pub fn FlexView(props: &FlexViewProps, element: &Element) -> Element {
         StyleScope(
             .class = props.class.clone(),
             .default_classes = DEFAULT_CLASSES,
-            .effective_style = effective_style
+            .effective_style = effective_style,
         ) {
             ContextProvider<ParentContext>(
                 ParentContext {
-                    add_child: Some(callback!([tree_context, canvas, child_order] |child: XamlElement, child_node: Option<taffy::NodeId>| {
+                    add_child: Some(callback!([tree_context, canvas, child_order] |child: XamlElement,
+                    child_node: Option<taffy::NodeId> | {
                         let predecessor = child_order.borrow().last_key();
-                        child_order.borrow_mut().place(child.clone(), child_node, predecessor);
+                        child_order
+                            .borrow_mut()
+                            .place(child.clone(), child_node, predecessor);
                         let _ = canvas.append_child(child);
                         let nodes = child_order.borrow().taffy_nodes();
                         tree_context.set_children(node_id, &nodes);
                         tree_context.refresh();
                     })),
-                    insert_child: Some(callback!([tree_context, canvas, child_order] |child: XamlElement, child_node: Option<taffy::NodeId>, predecessor: Option<XamlElement>| {
-                        child_order.borrow_mut().place(child.clone(), child_node, predecessor.clone());
+                    insert_child: Some(callback!([tree_context, canvas, child_order] |child: XamlElement,
+                    child_node: Option<taffy::NodeId>,
+                    predecessor: Option<XamlElement> | {
+                        child_order.borrow_mut().place(
+                            child.clone(),
+                            child_node,
+                            predecessor.clone(),
+                        );
                         let _ = canvas.insert_child_after(child, predecessor.as_ref());
                         let nodes = child_order.borrow().taffy_nodes();
                         tree_context.set_children(node_id, &nodes);
                         tree_context.refresh();
                     })),
-                    remove_child: Some(callback!([tree_context, canvas, child_order] |child: &XamlElement, _: Option<taffy::NodeId>| {
+                    remove_child: Some(callback!([tree_context, canvas, child_order] |child: &XamlElement,
+                    _: Option<taffy::NodeId> | {
                         let _ = canvas.remove_child(child);
                         child_order.borrow_mut().remove(child.clone());
                         let nodes = child_order.borrow().taffy_nodes();
                         tree_context.set_children(node_id, &nodes);
                         tree_context.refresh();
                     })),
-                    parent_node: Some(node_id),
+                    parent_node: Some(node_id)
                 },
             ) {
                 $(props.children.clone())

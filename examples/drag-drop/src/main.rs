@@ -47,39 +47,58 @@ fn DragDropExample(_: &(), element: &Element) -> Element {
                 ) {
                     DropTarget(
                         .accepted_types = DragDataTypes::ALL,
-                        .on_enter = callback!([hovering] |_offer: &DragOffer| {
-                            hovering.set(true);
-                            Some(DragOperation::Copy)
-                        }),
+                        .on_enter = callback!(
+                            [hovering] |_offer: &DragOffer| {
+                                hovering.set(true);
+                                Some(DragOperation::Copy)
+                            }
+                        ),
                         .on_over = callback!(|_offer: &DragOffer| Some(DragOperation::Copy)),
                         .on_leave = callback!([hovering] || hovering.set(false)),
-                        .on_drop = callback!([hovering, status] |event: DropEvent| {
-                            hovering.set(false);
-                            read_preferred_drop(event, status.clone());
-                        }),
+                        .on_drop = callback!(
+                            [hovering, status] |event: DropEvent| {
+                                hovering.set(false);
+                                read_preferred_drop(event, status.clone());
+                            }
+                        ),
                     ) {
                         DragSource(
                             .content = content,
                             .allowed_operations = DragOperations::COPY,
-                            .on_started = callback!([status] || status.set("Dragging all available representations…".to_string())),
-                            .on_completed = callback!([status] |outcome| {
-                                status.set(match outcome {
-                                    DragSourceOutcome::Dropped(operation) => format!("Drag completed with {operation:?}"),
-                                    DragSourceOutcome::Cancelled => "Drag cancelled".to_string(),
-                                });
-                            }),
-                            .on_error = callback!([status] |error| status.set(format!("Could not start drag: {error}"))),
+                            .on_started = callback!(
+                                [status] || status.set("Dragging all available representations…".to_string())
+                            ),
+                            .on_completed = callback!(
+                                [status] | outcome | {
+                                    status.set(match outcome {
+                                        DragSourceOutcome::Dropped(operation) => {
+                                            format!("Drag completed with {operation:?}")
+                                        }
+                                        DragSourceOutcome::Cancelled => {
+                                            "Drag cancelled".to_string()
+                                        }
+                                    });
+                                }
+                            ),
+                            .on_error = callback!(
+                                [status]
+                                    | error
+                                    | status.set(format!("Could not start drag: {error}"))
+                            ),
                         ) {
                             FlexView(
                                 .align_items = AlignItems::Center,
                                 .justify_content = JustifyContent::Center,
                                 .container(.padding = 32),
                                 .view(.width = 430, .height = 210),
-                                .bg_color = computed!([hovering] || Some(if hovering.get() {
-                                    Color::RGB(RGBColor::from_rgb(210, 235, 255))
-                                } else {
-                                    Color::RGB(RGBColor::from_rgb(235, 238, 242))
-                                })),
+                                .bg_color = computed!(
+                                    [hovering]
+                                        || Some(if hovering.get() {
+                                            Color::RGB(RGBColor::from_rgb(210, 235, 255))
+                                        } else {
+                                            Color::RGB(RGBColor::from_rgb(235, 238, 242))
+                                        })
+                                ),
                             ) {
                                 Text("Drag source + drop target")
                                 Text("Publishes a file, UTF-8 text, and an encoded JPEG.")

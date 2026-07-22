@@ -45,9 +45,10 @@ fn FilePickerExample(_: &(), element: &Element) -> Element {
                         .on_click = picker_callback(
                             picker.clone(),
                             status.clone(),
-                            FilePickerRequest::open_file().with_filter(
-                                FilePickerFilter::new("Images", ["png", "jpg", "jpeg"]),
-                            ),
+                            FilePickerRequest::open_file().with_filter(FilePickerFilter::new(
+                                "Images",
+                                ["png", "jpg", "jpeg"],
+                            )),
                         ),
                     )
                     Button(

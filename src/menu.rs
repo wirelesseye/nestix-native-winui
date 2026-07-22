@@ -532,7 +532,11 @@ pub fn Menu(props: &MenuProps, element: &Element) -> Element {
             }
         ));
     }
-    layout! { ContextProvider<MenuContext>(MenuContext(menu)) { $(props.children.clone()) } }
+    layout! {
+        ContextProvider<MenuContext>(MenuContext(menu)) {
+            $(props.children.clone())
+        }
+    }
 }
 
 #[component]
@@ -620,7 +624,11 @@ pub fn Submenu(props: &SubmenuProps, element: &Element) -> Element {
         props.visible.clone(),
         PropValue::from_plain(None),
     );
-    layout! { ContextProvider<MenuContext>(MenuContext(menu)) { $(props.children.clone()) } }
+    layout! {
+        ContextProvider<MenuContext>(MenuContext(menu)) {
+            $(props.children.clone())
+        }
+    }
 }
 
 #[component]
