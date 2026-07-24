@@ -17,6 +17,7 @@ pub mod slider;
 pub mod switch;
 pub mod tab_view;
 pub mod text;
+pub mod tray_icon;
 pub mod window;
 mod window_native;
 mod xaml;
@@ -50,6 +51,7 @@ pub use slider::*;
 pub use switch::*;
 pub use tab_view::*;
 pub use text::*;
+pub use tray_icon::*;
 pub use window::*;
 
 use nestix::create_element;
@@ -198,6 +200,13 @@ impl Backend for WinUiBackend {
         props: nestix_native_core::ContextMenuProps,
     ) -> Option<nestix::Element> {
         Some(create_element::<ContextMenu>(props))
+    }
+
+    fn create_tray_icon(
+        &self,
+        props: nestix_native_core::TrayIconProps,
+    ) -> Option<nestix::Element> {
+        Some(create_element::<TrayIcon>(props))
     }
 
     fn create_drag_source(

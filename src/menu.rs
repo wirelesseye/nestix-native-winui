@@ -17,7 +17,13 @@ use taffy::{
     prelude::{FromLength, FromPercent},
 };
 use windows::Win32::{
-    Foundation::POINT, Graphics::Gdi::ScreenToClient, UI::WindowsAndMessaging::GetCursorPos,
+    Foundation::{HWND, POINT},
+    Graphics::Gdi::ScreenToClient,
+    UI::WindowsAndMessaging::{
+        AppendMenuW, CreatePopupMenu, DestroyMenu, GetCursorPos, HMENU, MF_CHECKED, MF_DISABLED,
+        MF_GRAYED, MF_POPUP, MF_SEPARATOR, MF_STRING, MF_UNCHECKED, SetForegroundWindow,
+        TPM_LEFTALIGN, TPM_RETURNCMD, TPM_TOPALIGN, TrackPopupMenu,
+    },
 };
 use windows_core::{EventRevoker, HSTRING, Interface, Result};
 
@@ -424,6 +430,11 @@ struct ContextMenuContext {
 }
 
 #[derive(Clone)]
+pub(crate) struct TrayMenuContext {
+    pub menu: State<Option<Rc<MenuData>>>,
+}
+
+#[derive(Clone)]
 struct MenuBarContext {
     menu: State<Option<Rc<MenuData>>>,
 }
@@ -516,6 +527,20 @@ pub fn Menu(props: &MenuProps, element: &Element) -> Element {
             }
         ));
     } else if let Some(context) = element.context::<ContextMenuContext>() {
+        context.menu.set(Some(menu.clone()));
+        element.on_unmount(closure!(
+            [context, menu] || {
+                if context
+                    .menu
+                    .get()
+                    .as_ref()
+                    .is_some_and(|current| Rc::ptr_eq(current, &menu))
+                {
+                    context.menu.set(None);
+                }
+            }
+        ));
+    } else if let Some(context) = element.context::<TrayMenuContext>() {
         context.menu.set(Some(menu.clone()));
         element.on_unmount(closure!(
             [context, menu] || {
@@ -806,6 +831,130 @@ fn show_menu_at_point(
     menu.ShowAtWithOptions(target, &options)
 }
 
+struct TrayMenu(HMENU);
+
+impl Drop for TrayMenu {
+    fn drop(&mut self) {
+        unsafe {
+            let _ = DestroyMenu(self.0);
+        }
+    }
+}
+
+fn append_tray_entries(
+    target: HMENU,
+    menu: &MenuData,
+    next_id: &mut usize,
+    actions: &mut Vec<(usize, Rc<Entry>)>,
+) -> bool {
+    for entry in menu
+        .entries
+        .borrow()
+        .iter()
+        .filter(|entry| entry.visible.get())
+    {
+        let mut flags = match entry.kind {
+            EntryKind::Separator => MF_SEPARATOR,
+            _ => MF_STRING,
+        };
+        if !entry.enabled.get() {
+            flags |= MF_DISABLED | MF_GRAYED;
+        }
+        if entry.checked.get() {
+            flags |= MF_CHECKED;
+        } else {
+            flags |= MF_UNCHECKED;
+        }
+        let result = unsafe {
+            match &entry.kind {
+                EntryKind::Separator => AppendMenuW(target, flags, 0, None),
+                EntryKind::Submenu(submenu) => {
+                    let Ok(native_submenu) = CreatePopupMenu() else {
+                        return false;
+                    };
+                    if !append_tray_entries(native_submenu, submenu, next_id, actions) {
+                        let _ = DestroyMenu(native_submenu);
+                        return false;
+                    }
+                    let result = AppendMenuW(
+                        target,
+                        flags | MF_POPUP,
+                        native_submenu.0 as usize,
+                        &HSTRING::from(entry.label.borrow().as_str()),
+                    );
+                    if result.is_err() {
+                        let _ = DestroyMenu(native_submenu);
+                    }
+                    result
+                }
+                EntryKind::Item | EntryKind::Check | EntryKind::Radio => {
+                    let id = *next_id;
+                    *next_id += 1;
+                    actions.push((id, entry.clone()));
+                    AppendMenuW(
+                        target,
+                        flags,
+                        id,
+                        &HSTRING::from(shortcut_text_label(
+                            &entry.label.borrow(),
+                            entry.shortcut.get(),
+                        )),
+                    )
+                }
+            }
+        };
+        if result.is_err() {
+            return false;
+        }
+    }
+    true
+}
+
+fn shortcut_text_label(label: &str, shortcut: Option<Shortcut>) -> String {
+    shortcut.map_or_else(
+        || label.to_owned(),
+        |shortcut| format!("{label}\t{}", shortcut_text(shortcut)),
+    )
+}
+
+fn activate_tray_entry(entry: &Entry) {
+    if matches!(entry.kind, EntryKind::Check) {
+        entry.checked.set(!entry.checked.get());
+        let _ = entry.update();
+    }
+    (entry.action)();
+}
+
+pub(crate) fn show_tray_menu(menu: &MenuData, target: HWND, point: POINT) -> bool {
+    let Ok(native) = (unsafe { CreatePopupMenu() }) else {
+        return false;
+    };
+    let native = TrayMenu(native);
+    let mut next_id = 1;
+    let mut actions = Vec::new();
+    if !append_tray_entries(native.0, menu, &mut next_id, &mut actions) {
+        return false;
+    }
+    let id = unsafe {
+        let _ = SetForegroundWindow(target);
+        TrackPopupMenu(
+            native.0,
+            TPM_LEFTALIGN | TPM_TOPALIGN | TPM_RETURNCMD,
+            point.x,
+            point.y,
+            Some(0),
+            target,
+            None,
+        )
+        .0 as usize
+    };
+    drop(native);
+    if let Some((_, entry)) = actions.into_iter().find(|(action_id, _)| *action_id == id) {
+        activate_tray_entry(&entry);
+    }
+    true
+}
+
 #[component]
 pub fn ContextMenu(props: &ContextMenuProps, element: &Element) -> Element {
     let window = element.context::<WindowContext>().unwrap();
@@ -976,9 +1125,11 @@ fn shortcut_text(shortcut: Shortcut) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        MENU_BAR_FALLBACK_HEIGHT, MenuData, VirtualKey, VirtualKeyModifiers, menu_bar_style,
-        shortcut_text, shortcut_virtual_key, shortcut_virtual_modifiers,
+        EntryKind, MENU_BAR_FALLBACK_HEIGHT, MenuData, VirtualKey, VirtualKeyModifiers,
+        activate_tray_entry, entry, menu_bar_style, shortcut_text, shortcut_virtual_key,
+        shortcut_virtual_modifiers,
     };
+    use nestix::callback;
     use nestix_native_core::{Shortcut, ShortcutKey, ShortcutModifiers};
     use taffy::{
         Style,
@@ -1034,5 +1185,15 @@ mod tests {
             shortcut_virtual_key(ShortcutKey::Character('?')),
             VirtualKey(0xbf)
         );
+    }
+
+    #[test]
+    fn tray_activation_toggles_check_items() {
+        let entry = entry(EntryKind::Check, callback!(|| {}));
+        assert!(!entry.checked.get());
+        activate_tray_entry(&entry);
+        assert!(entry.checked.get());
+        activate_tray_entry(&entry);
+        assert!(!entry.checked.get());
     }
 }
