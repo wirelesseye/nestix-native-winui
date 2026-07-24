@@ -1,12 +1,11 @@
 use env_logger::Env;
 use nestix::{
-    ContextProvider, Element, Shared, callback, component, computed, create_state, destructure,
-    layout, mount_root, props,
+    Element, Shared, callback, component, computed, create_state, destructure, layout, mount_root,
+    props, unmount_root,
 };
 use nestix_native::{
-    AlignItems, BackendContext, Button, Color, FlexDirection, FlexView, ImageSource, ImageView,
-    Input, RGBColor, Root, ScrollView, StyleProvider, TabView, TabViewItem, Text, Window,
-    default_backend, style,
+    AlignItems, Button, Color, FlexDirection, FlexView, ImageSource, ImageView, Input, RGBColor,
+    Root, ScrollView, StyleProvider, TabView, TabViewItem, Text, Window, computed_style, style,
 };
 use nestix_native_winui::WINUI_BACKEND;
 
@@ -14,13 +13,10 @@ const SAMPLE_IMAGE: &[u8] = include_bytes!("../../assets/sample.jpg");
 
 fn main() {
     env_logger::Builder::from_env(Env::default().default_filter_or("warn")).init();
-    let backend = if cfg!(target_os = "windows") {
-        &WINUI_BACKEND
-    } else {
-        default_backend()
-    };
     mount_root(&layout! {
-        ContextProvider<BackendContext>(BackendContext { backend }) {
+        nestix::ContextProvider<nestix_native::BackendContext>(
+            nestix_native::BackendContext { backend: &WINUI_BACKEND,  },
+        ) {
             ExampleApp
         }
     });
@@ -34,7 +30,7 @@ fn random_color() -> Color {
 }
 
 #[component]
-fn ExampleApp(_: &(), element: &Element) -> Element {
+fn ExampleApp() -> Element {
     let styles = style! {
         .app {
             // bg_color: #F4F6F8;
@@ -70,7 +66,9 @@ fn ExampleApp(_: &(), element: &Element) -> Element {
                     .title = "Nestix Tabs",
                     .width = 520,
                     .height = 420,
-                    .on_close_requested = callback!([element] || element.unmount()),
+                    .on_close_requested = callback!(|| {
+                        unmount_root().expect("root should be mounted");
+                    }),
                 ) {
                     FlexView(.class = "app", .view(.flex_grow = 1.0)) {
                         TabView(.view(.flex_grow = 1.0)) {
@@ -92,13 +90,12 @@ fn ExampleApp(_: &(), element: &Element) -> Element {
 fn Counter() -> Element {
     let count = create_state(0);
     let bg_color = create_state(Color::TRANSPARENT);
-    let styles = computed!(
+    let styles = computed_style!(
         [bg_color]
-            || style! {
-                .counter {
-                    bg_color: $(bg_color.get());
-                }
-            }
+
+        .counter {
+            bg_color: $(bg_color.get());
+        }
     );
 
     layout! {

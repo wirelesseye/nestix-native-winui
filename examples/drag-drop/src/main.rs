@@ -1,11 +1,11 @@
 use env_logger::Env;
 use nestix::{
-    ContextProvider, Element, callback, component, computed, create_state, layout, mount_root,
+    Element, callback, component, computed, create_state, layout, mount_root, unmount_root,
 };
 use nestix_native::{
-    AlignItems, BackendContext, Color, DragContent, DragDataTypes, DragImage, DragOffer,
-    DragOperation, DragOperations, DragReadError, DragSource, DragSourceOutcome, DropEvent,
-    DropTarget, FlexView, JustifyContent, RGBColor, Root, Text, Window,
+    AlignItems, Color, DragContent, DragDataTypes, DragImage, DragOffer, DragOperation,
+    DragOperations, DragReadError, DragSource, DragSourceOutcome, DropEvent, DropTarget, FlexView,
+    JustifyContent, RGBColor, Root, Text, Window,
 };
 use nestix_native_winui::WINUI_BACKEND;
 
@@ -14,19 +14,21 @@ const SAMPLE_IMAGE: &[u8] = include_bytes!("../../assets/sample.jpg");
 fn main() {
     env_logger::Builder::from_env(Env::default().default_filter_or("warn")).init();
     mount_root(&layout! {
-        ContextProvider<BackendContext>(BackendContext { backend: &WINUI_BACKEND }) {
+        nestix::ContextProvider<nestix_native::BackendContext>(
+            nestix_native::BackendContext { backend: &WINUI_BACKEND,  },
+        ) {
             DragDropExample
         }
     });
 }
 
 #[component]
-fn DragDropExample(_: &(), element: &Element) -> Element {
+fn DragDropExample() -> Element {
     let hovering = create_state(false);
     let status =
         create_state("Drag the card, or drop files, an image, or text onto it.".to_string());
     let mut content = DragContent::new()
-        .with_text("Hello from Nestix WinUI")
+        .with_text("Hello from Nestix")
         .with_image(DragImage::new(SAMPLE_IMAGE, "image/jpeg", "sample.jpg"));
     if let Ok(executable) = std::env::current_exe() {
         content = content.with_files([executable]);
@@ -35,10 +37,12 @@ fn DragDropExample(_: &(), element: &Element) -> Element {
     layout! {
         Root {
             Window(
-                .title = "Nestix WinUI Drag and Drop",
+                .title = "Nestix Drag and Drop",
                 .width = 620,
                 .height = 420,
-                .on_close_requested = callback!([element] || element.unmount()),
+                .on_close_requested = callback!(|| {
+                    unmount_root().expect("root should be mounted");
+                }),
             ) {
                 FlexView(
                     .align_items = AlignItems::Center,
@@ -66,7 +70,9 @@ fn DragDropExample(_: &(), element: &Element) -> Element {
                             .content = content,
                             .allowed_operations = DragOperations::COPY,
                             .on_started = callback!(
-                                [status] || status.set("Dragging all available representations…".to_string())
+                                [status] || {
+                                    status.set("Dragging all available representations…".to_string());
+                                }
                             ),
                             .on_completed = callback!(
                                 [status] | outcome | {
@@ -81,9 +87,9 @@ fn DragDropExample(_: &(), element: &Element) -> Element {
                                 }
                             ),
                             .on_error = callback!(
-                                [status]
-                                    | error
-                                    | status.set(format!("Could not start drag: {error}"))
+                                [status] | error | {
+                                    status.set(format!("Could not start drag: {error}"));
+                                }
                             ),
                         ) {
                             FlexView(
@@ -101,7 +107,7 @@ fn DragDropExample(_: &(), element: &Element) -> Element {
                                 ),
                             ) {
                                 Text("Drag source + drop target")
-                                Text("Publishes a file, UTF-8 text, and an encoded JPEG.")
+                                Text("Publishes a file, UTF-8 text, and an encoded PNG.")
                                 Text(computed!([status] || format!("Status: {}", status.get())))
                             }
                         }
@@ -114,18 +120,40 @@ fn DragDropExample(_: &(), element: &Element) -> Element {
 
 fn read_preferred_drop(event: DropEvent, status: nestix::State<String>) {
     let available = event.data.available_types();
+    // Shell file drags may also advertise an auxiliary text representation.
+    // Prefer CF_HDROP so filesystem entries remain files rather than being
+    // interpreted as text containing their paths.
     if available.contains(DragDataTypes::FILES) {
-        event.data.read_files(callback!([status] |result: Result<Vec<std::path::PathBuf>, DragReadError>| {
-            status.set(match result { Ok(files) => format!("Dropped files: {files:?}"), Err(error) => format!("Could not read files: {error}") });
-        }));
+        event.data.read_files(
+            callback!([status] |result: Result<Vec<std::path::PathBuf>, DragReadError>| {
+                status.set(match result {
+                    Ok(files) => format!("Dropped files: {files:?}"),
+                    Err(error) => format!("Could not read files: {error}"),
+                });
+            }),
+        );
     } else if available.contains(DragDataTypes::TEXT) {
-        event.data.read_text(callback!([status] |result: Result<String, DragReadError>| {
-            status.set(match result { Ok(text) => format!("Dropped text: {text}"), Err(error) => format!("Could not read text: {error}") });
-        }));
+        event
+            .data
+            .read_text(callback!([status] |result: Result<String, DragReadError>| {
+                status.set(match result {
+                    Ok(text) => format!("Dropped text: {text}"),
+                    Err(error) => format!("Could not read text: {error}"),
+                });
+            }));
     } else if available.contains(DragDataTypes::IMAGE) {
-        event.data.read_image(callback!([status] |result: Result<DragImage, DragReadError>| {
-            status.set(match result { Ok(image) => format!("Dropped {} image ({} bytes)", image.media_type, image.bytes.len()), Err(error) => format!("Could not read image: {error}") });
-        }));
+        event.data.read_image(
+            callback!([status] |result: Result<DragImage, DragReadError>| {
+                status.set(match result {
+                    Ok(image) => format!(
+                        "Dropped {} image ({} bytes)",
+                        image.media_type,
+                        image.bytes.len()
+                    ),
+                    Err(error) => format!("Could not read image: {error}"),
+                });
+            }),
+        );
     } else {
         status.set("The drop did not contain a supported representation.".to_string());
     }

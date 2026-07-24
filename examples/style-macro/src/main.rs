@@ -1,0 +1,148 @@
+use env_logger::Env;
+use nestix::{Element, callback, component, layout, mount_root, unmount_root};
+use nestix_native::{Button, FlexView, Root, StyleProvider, Text, Window, style};
+use nestix_native_winui::WINUI_BACKEND;
+
+fn main() {
+    env_logger::Builder::from_env(Env::default().default_filter_or("warn")).init();
+    mount_root(&layout! {
+        nestix::ContextProvider<nestix_native::BackendContext>(
+            nestix_native::BackendContext { backend: &WINUI_BACKEND,  },
+        ) {
+            StyleMacroApp
+        }
+    });
+}
+
+#[component]
+fn StyleMacroApp() -> Element {
+    let styles = style! {
+        // Class selectors and selector lists.
+        .app {
+            padding: 28px;
+            gap: 18px;
+        }
+
+        .heading, .card_title {
+            font_weight: semi-bold;
+            text_color: #172033;
+        }
+
+        .heading {
+            font_size: 26px;
+        }
+
+        .intro {
+            text_color: #526079;
+        }
+
+        // Nested child, compound, pseudo-class, and sibling selectors.
+        .gallery {
+            gap: 12px;
+
+            > .card {
+                padding: 16px;
+                gap: 7px;
+                bg_color: #EEF2F8;
+
+                &:first_child {
+                    bg_color: #E5F0FF;
+                }
+
+                &.featured {
+                    bg_color: #E8F7EE;
+                }
+
+                + .card {
+                    margin_top: 4px;
+                }
+
+                > .card_title {
+                    font_size: 18px;
+                }
+
+                // An implicit nested selector is a descendant selector.
+                .detail {
+                    text_color: #526079;
+                }
+
+                // `>>` spells an explicit descendant combinator.
+                >> .action {
+                    margin_top: 5px;
+                }
+            }
+        }
+
+        // Negation and a direct-child selector outside of nesting.
+        .card:not(.featured) > .tag {
+            text_color: #315FA8;
+        }
+
+        .card.featured > .tag {
+            text_color: #18733A;
+            font_weight: bold;
+        }
+
+        .actions {
+            flex_direction: row;
+            align_items: center;
+            gap: 8px;
+        }
+    };
+
+    layout! {
+        StyleProvider(styles) {
+            Root {
+                Window(
+                    .title = "Nestix style! selector gallery",
+                    .width = 620,
+                    .height = 650,
+                    .on_close_requested = callback!(|| {
+                        unmount_root().expect("root should be mounted");
+                    }),
+                ) {
+                    FlexView(.class = "app", .view(.flex_grow = 1.0)) {
+                        Text("style! selector gallery", .class = "heading")
+                        Text(
+                            "Class, compound, pseudo-class, combinator, selector-list, and nested rules.",
+                            .class = "intro",
+                        )
+                        FlexView(.class = "gallery") {
+                            FlexView(.class = "card") {
+                                Text("First child", .class = "card_title")
+                                Text(
+                                    ":first_child changes this card's background.",
+                                    .class = "detail",
+                                )
+                                Text(":not(.featured) > .tag", .class = "tag")
+                            }
+                            FlexView(.class = "card featured") {
+                                Text("Compound selector", .class = "card_title")
+                                Text(
+                                    "&.featured combines the nested parent with a class.",
+                                    .class = "detail",
+                                )
+                                Text(".card.featured > .tag", .class = "tag")
+                                FlexView(.class = "actions") {
+                                    Button(.title = "Nested action", .class = "action")
+                                    Button(.title = "Sibling action", .class = "action")
+                                }
+                            }
+                            FlexView(.class = "card") {
+                                Text("Combinators", .class = "card_title")
+                                FlexView {
+                                    Text(
+                                        "> targets direct children; >> targets descendants.",
+                                        .class = "detail",
+                                    )
+                                    Button(.title = "Descendant button", .class = "action")
+                                }
+                                Text("+ adds spacing between adjacent cards.", .class = "tag")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

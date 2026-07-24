@@ -1,6 +1,6 @@
 # nestix-native-winui
 
-Experimental WinUI backend for `nestix-native`.
+Experimental WinUI backend for [Nestix Native](https://github.com/wirelesseye/nestix-native).
 
 ## Requirements
 

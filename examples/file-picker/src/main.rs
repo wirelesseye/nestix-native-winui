@@ -1,27 +1,24 @@
 use env_logger::Env;
-use nestix::{ContextProvider, Element, callback, component, create_state, layout, mount_root};
+use nestix::{Element, callback, component, create_state, layout, mount_root, unmount_root};
 use nestix_native::{
-    AlignItems, BackendContext, Button, FilePicker, FilePickerController, FilePickerFilter,
-    FilePickerOutcome, FilePickerRequest, FlexView, Root, Text, Window, default_backend,
+    AlignItems, Button, FilePicker, FilePickerController, FilePickerFilter, FilePickerOutcome,
+    FilePickerRequest, FlexView, Root, Text, Window,
 };
 use nestix_native_winui::WINUI_BACKEND;
 
 fn main() {
     env_logger::Builder::from_env(Env::default().default_filter_or("warn")).init();
-    let backend = if cfg!(target_os = "windows") {
-        &WINUI_BACKEND
-    } else {
-        default_backend()
-    };
     mount_root(&layout! {
-        ContextProvider<BackendContext>(BackendContext { backend }) {
+        nestix::ContextProvider<nestix_native::BackendContext>(
+            nestix_native::BackendContext { backend: &WINUI_BACKEND,  },
+        ) {
             FilePickerExample
         }
     });
 }
 
 #[component]
-fn FilePickerExample(_: &(), element: &Element) -> Element {
+fn FilePickerExample() -> Element {
     let picker = FilePickerController::new();
     let status = create_state("Choose an operation".to_string());
 
@@ -31,7 +28,9 @@ fn FilePickerExample(_: &(), element: &Element) -> Element {
                 .title = "Nestix File Picker",
                 .width = 520,
                 .height = 360,
-                .on_close_requested = callback!([element] || element.unmount()),
+                .on_close_requested = callback!(|| {
+                    unmount_root().expect("root should be mounted");
+                }),
             ) {
                 FlexView(
                     .align_items = AlignItems::Start,

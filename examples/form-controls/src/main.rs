@@ -1,30 +1,26 @@
 use env_logger::Env;
 use nestix::{
-    ContextProvider, Element, callback, component, computed, create_state, layout, mount_root,
+    Element, callback, component, computed, create_state, layout, mount_root, unmount_root,
 };
 use nestix_native::{
-    AlignItems, BackendContext, Button, Checkbox, FlexDirection, FlexView, Input, RadioButton,
-    Root, Select, SelectOption, Slider, StyleProvider, Switch, Text, Window, default_backend,
-    style,
+    AlignItems, Button, Checkbox, FlexDirection, FlexView, Input, RadioButton, Root, Select,
+    SelectOption, Slider, StyleProvider, Switch, Text, Window, style,
 };
 use nestix_native_winui::WINUI_BACKEND;
 
 fn main() {
     env_logger::Builder::from_env(Env::default().default_filter_or("warn")).init();
-    let backend = if cfg!(target_os = "windows") {
-        &WINUI_BACKEND
-    } else {
-        default_backend()
-    };
     mount_root(&layout! {
-        ContextProvider<BackendContext>(BackendContext { backend }) {
+        nestix::ContextProvider<nestix_native::BackendContext>(
+            nestix_native::BackendContext { backend: &WINUI_BACKEND,  },
+        ) {
             FormControlsApp
         }
     });
 }
 
 #[component]
-fn FormControlsApp(_: &(), element: &Element) -> Element {
+fn FormControlsApp() -> Element {
     let name = create_state(String::new());
     let newsletter = create_state(false);
     let notifications = create_state(true);
@@ -76,7 +72,9 @@ fn FormControlsApp(_: &(), element: &Element) -> Element {
                     .title = "Nestix Form Controls",
                     .width = 560,
                     .height = 680,
-                    .on_close_requested = callback!([element] || element.unmount()),
+                    .on_close_requested = callback!(|| {
+                        unmount_root().expect("root should be mounted");
+                    }),
                 ) {
                     FlexView(.class = "content", .view(.flex_grow = 1.0)) {
                         Text("Form controls", .class = "heading")
@@ -174,15 +172,27 @@ fn FormControlsApp(_: &(), element: &Element) -> Element {
                             .flex_direction = FlexDirection::Row,
                             .align_items = AlignItems::Center,
                         ) {
-                            Text("Enable notifications", .class = "choice")
-                            Switch(
-                                .checked = notifications.clone(),
-                                .on_checked_change = callback!(
-                                    [notifications] | checked | {
-                                        notifications.set(checked);
-                                    }
-                                ),
-                            )
+                            if cfg!(target_os = "windows") {
+                                Checkbox(
+                                    "Enable notifications",
+                                    .checked = notifications.clone(),
+                                    .on_checked_change = callback!(
+                                        [notifications] | checked | {
+                                            notifications.set(checked);
+                                        }
+                                    ),
+                                )
+                            } else {
+                                Text("Enable notifications", .class = "choice")
+                                Switch(
+                                    .checked = notifications.clone(),
+                                    .on_checked_change = callback!(
+                                        [notifications] | checked | {
+                                            notifications.set(checked);
+                                        }
+                                    ),
+                                )
+                            }
                         }
                         FlexView(
                             .class = "actions",

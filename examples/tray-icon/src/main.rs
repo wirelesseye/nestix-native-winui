@@ -1,18 +1,19 @@
 use env_logger::Env;
 use nestix::{
-    ContextProvider, Element, callback, component, computed, create_state, layout, mount_root,
-    unmount_root,
+    Element, callback, component, computed, create_state, layout, mount_root, unmount_root,
 };
 use nestix_native::{
-    AlignItems, BackendContext, Button, CheckMenuItem, FlexView, ImageSource, JustifyContent, Menu,
-    MenuItem, MenuSeparator, RadioMenuItem, Root, Submenu, Text, TrayIcon, Window,
+    AlignItems, Button, CheckMenuItem, FlexView, ImageSource, JustifyContent, Menu, MenuItem,
+    MenuSeparator, RadioMenuItem, Root, Submenu, Text, TrayIcon, Window,
 };
 use nestix_native_winui::WINUI_BACKEND;
 
 fn main() {
     env_logger::Builder::from_env(Env::default().default_filter_or("warn")).init();
     mount_root(&layout! {
-        ContextProvider<BackendContext>(BackendContext { backend: &WINUI_BACKEND,  }) {
+        nestix::ContextProvider<nestix_native::BackendContext>(
+            nestix_native::BackendContext { backend: &WINUI_BACKEND,  },
+        ) {
             TrayIconExample
         }
     });

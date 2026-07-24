@@ -1,30 +1,27 @@
 use env_logger::Env;
 use nestix::{
-    ContextProvider, Element, callback, component, computed, create_state, layout, mount_root,
+    Element, callback, component, computed, create_state, layout, mount_root, unmount_root,
 };
 use nestix_native::{
-    AlignItems, BackendContext, Button, CheckMenuItem, Color, ContextMenu, ContextMenuController,
+    AlignItems, Button, CheckMenuItem, Color, ContextMenu, ContextMenuController,
     ContextMenuPosition, FlexView, JustifyContent, Menu, MenuItem, MenuSeparator, RGBColor,
-    RadioMenuItem, Root, Shortcut, Submenu, Text, Window, default_backend,
+    RadioMenuItem, Root, Shortcut, Submenu, Text, Window,
 };
 use nestix_native_winui::WINUI_BACKEND;
 
 fn main() {
     env_logger::Builder::from_env(Env::default().default_filter_or("warn")).init();
-    let backend = if cfg!(target_os = "windows") {
-        &WINUI_BACKEND
-    } else {
-        default_backend()
-    };
     mount_root(&layout! {
-        ContextProvider<BackendContext>(BackendContext { backend }) {
+        nestix::ContextProvider<nestix_native::BackendContext>(
+            nestix_native::BackendContext { backend: &WINUI_BACKEND,  },
+        ) {
             ContextMenuExample
         }
     });
 }
 
 #[component]
-fn ContextMenuExample(_: &(), element: &Element) -> Element {
+fn ContextMenuExample() -> Element {
     let status = create_state("No command selected".to_string());
     let show_details = create_state(true);
     let show_advanced = create_state(false);
@@ -117,7 +114,9 @@ fn ContextMenuExample(_: &(), element: &Element) -> Element {
                 .title = "Nestix Context Menu",
                 .width = 520,
                 .height = 360,
-                .on_close_requested = callback!([element] || element.unmount()),
+                .on_close_requested = callback!(|| {
+                    unmount_root().expect("root should be mounted");
+                }),
             ) {
                 FlexView(
                     .align_items = AlignItems::Center,
