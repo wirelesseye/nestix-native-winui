@@ -185,7 +185,7 @@ fn TodoList() -> Element {
                 .flex_direction = FlexDirection::Row,
                 .align_items = AlignItems::Center,
             ) {
-                Input(.view(.flex_grow = 1.0).value = input_text, .on_text_change = on_text_change)
+                Input(.view(.flex_grow = 1.0), .value = input_text, .on_text_change = on_text_change)
                 Button(.title = "Add", .on_click = add)
             }
             ScrollView(.view(.flex_grow = 1.0)) {

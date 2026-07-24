@@ -51,14 +51,12 @@ pub fn Text(props: &TextProps, element: &Element) {
         .expect("failed to register WinUI TextBlock measurement");
 
     scoped_effect!(
-        element,
         [text_block, props.text] || {
             let _ = text_block.set_text(text.get());
         }
     );
 
     scoped_effect!(
-        element,
         [
             text_block,
             style_props,
@@ -81,7 +79,6 @@ pub fn Text(props: &TextProps, element: &Element) {
     );
 
     scoped_effect!(
-        element,
         [
             tree_context,
             style_props,
@@ -103,7 +100,6 @@ pub fn Text(props: &TextProps, element: &Element) {
     );
 
     scoped_effect!(
-        element,
         [
             window_context.scale_factor,
             tree_context,
@@ -148,7 +144,6 @@ pub fn Text(props: &TextProps, element: &Element) {
     );
 
     scoped_effect!(
-        element,
         [
             window_context.scale_factor,
             tree_context,
@@ -174,7 +169,6 @@ pub fn Text(props: &TextProps, element: &Element) {
     );
 
     scoped_effect!(
-        element,
         [
             window_context.scale_factor,
             tree_context,
@@ -195,7 +189,6 @@ pub fn Text(props: &TextProps, element: &Element) {
     );
 
     scoped_effect!(
-        element,
         [tree_context, style_props, props.view.align_self] || {
             let style_props = style_props.get();
             tree_context.update_style(node_id, |prev| Style {
@@ -207,7 +200,6 @@ pub fn Text(props: &TextProps, element: &Element) {
     );
 
     scoped_effect!(
-        element,
         [tree_context, parent_context.parent_node, text_block] || {
             if parent_node.is_some()
                 && let Some(layout) = tree_context.layout(node_id)

@@ -50,14 +50,12 @@ pub fn Window(props: &WindowProps, element: &Element) -> Element {
     ));
 
     scoped_effect!(
-        element,
         [window, props.title] || {
             let _ = window.set_title(title.get());
         }
     );
 
     scoped_effect!(
-        element,
         [window, props.title_bar_mode] || {
             let _ = window.set_title_bar_mode(title_bar_mode.get());
         }
@@ -97,7 +95,6 @@ pub fn Window(props: &WindowProps, element: &Element) -> Element {
         .expect("failed to watch WinUI window close requests");
 
     scoped_effect!(
-        element,
         [
             window,
             tree_context,

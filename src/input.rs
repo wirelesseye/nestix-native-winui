@@ -49,14 +49,12 @@ pub fn Input(props: &InputProps, element: &Element) {
         .expect("failed to register WinUI TextBox measurement");
 
     scoped_effect!(
-        element,
         [text_box, props.value] || {
             let _ = text_box.set_text(value.get());
         }
     );
 
     scoped_effect!(
-        element,
         [text_box, props.on_text_change] || {
             let _ = text_box.set_on_text_changed(on_text_change.get().map(|on_text_change| {
                 callback!([on_text_change] |text: String| {
@@ -67,7 +65,6 @@ pub fn Input(props: &InputProps, element: &Element) {
     );
 
     scoped_effect!(
-        element,
         [
             tree_context,
             style_props,
@@ -89,7 +86,6 @@ pub fn Input(props: &InputProps, element: &Element) {
     );
 
     scoped_effect!(
-        element,
         [
             window_context.scale_factor,
             tree_context,
@@ -134,7 +130,6 @@ pub fn Input(props: &InputProps, element: &Element) {
     );
 
     scoped_effect!(
-        element,
         [
             window_context.scale_factor,
             tree_context,
@@ -160,7 +155,6 @@ pub fn Input(props: &InputProps, element: &Element) {
     );
 
     scoped_effect!(
-        element,
         [
             window_context.scale_factor,
             tree_context,
@@ -181,7 +175,6 @@ pub fn Input(props: &InputProps, element: &Element) {
     );
 
     scoped_effect!(
-        element,
         [tree_context, style_props, props.view.align_self] || {
             let style_props = style_props.get();
             tree_context.update_style(node_id, |prev| Style {
@@ -193,7 +186,6 @@ pub fn Input(props: &InputProps, element: &Element) {
     );
 
     scoped_effect!(
-        element,
         [tree_context, parent_context.parent_node, text_box] || {
             if parent_node.is_some()
                 && let Some(layout) = tree_context.layout(node_id)

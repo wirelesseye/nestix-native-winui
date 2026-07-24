@@ -15,19 +15,16 @@ pub fn Slider(props: &SliderProps, element: &Element) {
     let control = SliderElement::new().expect("failed to create WinUI Slider");
     native_control::mount(element, control.erased(), style, &props.view);
     scoped_effect!(
-        element,
         [control, props.enabled] || {
             let _ = control.set_enabled(enabled.get());
         }
     );
     scoped_effect!(
-        element,
         [control, props.minimum, props.maximum, props.value] || {
             let _ = control.set_range(minimum.get(), maximum.get(), value.get());
         }
     );
     scoped_effect!(
-        element,
         [control, props.on_value_change] || {
             let _ = control.set_on_value_change(
                 on_value_change

@@ -466,7 +466,6 @@ fn place_entry(element: &Element, menu: Rc<MenuData>, entry: Rc<Entry>) {
 }
 
 fn common_effects(
-    element: &Element,
     entry: Rc<Entry>,
     label: PropValue<String>,
     enabled: PropValue<bool>,
@@ -474,7 +473,6 @@ fn common_effects(
     shortcut: PropValue<Option<Shortcut>>,
 ) {
     scoped_effect!(
-        element,
         [entry, label, enabled, visible, shortcut] || {
             *entry.label.borrow_mut() = label.get();
             entry.enabled.set(enabled.get());
@@ -573,13 +571,11 @@ pub fn MenuBar(props: &MenuBarProps, element: &Element) -> Element {
             .expect("failed to register WinUI MenuBar measurement");
 
         scoped_effect!(
-            element,
             [control, menu] || {
                 let _ = control.set_menu(menu.get());
             }
         );
         scoped_effect!(
-            element,
             [tree, intrinsic_size] || {
                 let (_, height) = intrinsic_size.get();
                 tree.update_style(node_id, |previous| menu_bar_style(previous, height));
@@ -587,7 +583,6 @@ pub fn MenuBar(props: &MenuBarProps, element: &Element) -> Element {
             }
         );
         scoped_effect!(
-            element,
             [tree, parent.parent_node, control] || {
                 if parent_node.is_some()
                     && let Some(layout) = tree.layout(node_id)
@@ -617,7 +612,6 @@ pub fn Submenu(props: &SubmenuProps, element: &Element) -> Element {
     let entry = entry(EntryKind::Submenu(menu.clone()), callback!(|| {}));
     place_entry(element, parent, entry.clone());
     common_effects(
-        element,
         entry,
         props.label.clone(),
         props.enabled.clone(),
@@ -646,7 +640,6 @@ pub fn MenuItem(props: &MenuItemProps, element: &Element) {
     );
     place_entry(element, menu, entry.clone());
     common_effects(
-        element,
         entry,
         props.label.clone(),
         props.enabled.clone(),
@@ -676,7 +669,6 @@ pub fn CheckMenuItem(props: &CheckMenuItemProps, element: &Element) {
     *slot.borrow_mut() = Rc::downgrade(&entry);
     place_entry(element, menu, entry.clone());
     common_effects(
-        element,
         entry.clone(),
         props.label.clone(),
         props.enabled.clone(),
@@ -684,7 +676,6 @@ pub fn CheckMenuItem(props: &CheckMenuItemProps, element: &Element) {
         props.shortcut.clone(),
     );
     scoped_effect!(
-        element,
         [entry, props.checked] || {
             entry.checked.set(checked.get());
             let _ = entry.update();
@@ -720,7 +711,6 @@ pub fn RadioMenuItem(props: &RadioMenuItemProps, element: &Element) {
     *entry_slot.borrow_mut() = Rc::downgrade(&entry);
     place_entry(element, menu, entry.clone());
     common_effects(
-        element,
         entry.clone(),
         props.label.clone(),
         props.enabled.clone(),
@@ -728,14 +718,12 @@ pub fn RadioMenuItem(props: &RadioMenuItemProps, element: &Element) {
         props.shortcut.clone(),
     );
     scoped_effect!(
-        element,
         [entry, props.selected] || {
             entry.checked.set(selected.get());
             let _ = entry.update();
         }
     );
     scoped_effect!(
-        element,
         [entry, props.group] || {
             *entry.group.borrow_mut() = Some(group.get());
             let _ = entry.update();
@@ -749,7 +737,6 @@ pub fn MenuSeparator(props: &MenuSeparatorProps, element: &Element) {
     let entry = entry(EntryKind::Separator, callback!(|| {}));
     place_entry(element, menu, entry.clone());
     scoped_effect!(
-        element,
         [entry, props.visible] || {
             entry.visible.set(visible.get());
             let _ = entry.update();
@@ -829,7 +816,6 @@ pub fn ContextMenu(props: &ContextMenuProps, element: &Element) -> Element {
     let attached = Rc::new(RefCell::new(None::<(XamlElement, Rc<MenuData>)>));
 
     scoped_effect!(
-        element,
         [target, props.children] || {
             children.get().on_last_handle_change(closure!(
                 [target] | handle | {
@@ -841,7 +827,6 @@ pub fn ContextMenu(props: &ContextMenuProps, element: &Element) -> Element {
     );
 
     scoped_effect!(
-        element,
         [
             window,
             menu,

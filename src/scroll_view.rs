@@ -51,14 +51,12 @@ pub fn ScrollView(props: &ScrollViewProps, element: &Element) -> Element {
     ));
 
     scoped_effect!(
-        element,
         [scroll, props.scroll_x, props.scroll_y] || {
             let _ = scroll.set_scroll_enabled(scroll_x.get(), scroll_y.get());
         }
     );
 
     scoped_effect!(
-        element,
         [
             tree_context,
             styles,
@@ -82,7 +80,6 @@ pub fn ScrollView(props: &ScrollViewProps, element: &Element) -> Element {
     );
 
     scoped_effect!(
-        element,
         [
             window.scale_factor,
             tree_context,
@@ -119,7 +116,6 @@ pub fn ScrollView(props: &ScrollViewProps, element: &Element) -> Element {
     subtree_context.set_root_node(Some(subtree_root));
 
     scoped_effect!(
-        element,
         [tree_context, subtree_context, parent.parent_node, scroll] || {
             if parent_node.is_some()
                 && let Some(value) = tree_context.layout(node)

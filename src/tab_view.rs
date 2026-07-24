@@ -76,7 +76,6 @@ pub fn TabView(props: &TabViewProps, element: &Element) -> Element {
     ));
 
     scoped_effect!(
-        element,
         [
             tree_context,
             style_props,
@@ -98,7 +97,6 @@ pub fn TabView(props: &TabViewProps, element: &Element) -> Element {
     );
 
     scoped_effect!(
-        element,
         [
             window_context.scale_factor,
             tree_context,
@@ -135,7 +133,6 @@ pub fn TabView(props: &TabViewProps, element: &Element) -> Element {
     );
 
     scoped_effect!(
-        element,
         [
             window_context.scale_factor,
             tree_context,
@@ -166,7 +163,6 @@ pub fn TabView(props: &TabViewProps, element: &Element) -> Element {
     );
 
     scoped_effect!(
-        element,
         [
             window_context.scale_factor,
             tree_context,
@@ -186,7 +182,6 @@ pub fn TabView(props: &TabViewProps, element: &Element) -> Element {
     );
 
     scoped_effect!(
-        element,
         [tree_context, style_props, props.view.align_self] || {
             let style_props = style_props.get();
             tree_context.update_style(node_id, |prev| Style {
@@ -198,7 +193,6 @@ pub fn TabView(props: &TabViewProps, element: &Element) -> Element {
     );
 
     scoped_effect!(
-        element,
         [tree_context, parent_context.parent_node, tab_view] || {
             if parent_node.is_some()
                 && let Some(layout) = tree_context.layout(node_id)
@@ -270,19 +264,16 @@ pub fn TabViewItem(props: &TabViewItemProps, element: &Element) -> Element {
     ));
 
     scoped_effect!(
-        element,
         [item, props.id] || {
             let _ = item.set_id(id.get());
         }
     );
     scoped_effect!(
-        element,
         [item, props.title] || {
             let _ = item.set_title(title.get());
         }
     );
     scoped_effect!(
-        element,
         [item, tab_context.current_selected, props.id] || {
             let _ = item.set_visible(current_selected.get() == Some(id.get()));
         }
@@ -290,7 +281,6 @@ pub fn TabViewItem(props: &TabViewItemProps, element: &Element) -> Element {
 
     let subtree_context = Rc::new(TreeContext::new());
     scoped_effect!(
-        element,
         [subtree_context, tab_context.content_size] || {
             let (width, height) = content_size.get();
             if let Some(root_node) = subtree_context.root_node() {

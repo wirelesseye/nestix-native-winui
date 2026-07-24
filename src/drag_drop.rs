@@ -411,7 +411,6 @@ pub fn DropTarget(props: &DropTargetProps, element: &Element) -> Element {
     let registration = Rc::new(RefCell::new(None::<TargetRegistration>));
     let realized_registration = Rc::new(RefCell::new(None::<XamlRealizedRegistration>));
     scoped_effect!(
-        element,
         [
             registration,
             realized_registration,
@@ -692,7 +691,6 @@ pub fn DragSource(props: &DragSourceProps, element: &Element) -> Element {
     let registration = Rc::new(RefCell::new(None::<SourceRegistration>));
     let realized_registration = Rc::new(RefCell::new(None::<XamlRealizedRegistration>));
     scoped_effect!(
-        element,
         [
             registration,
             realized_registration,

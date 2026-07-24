@@ -32,19 +32,16 @@ pub fn Select(props: &SelectProps, element: &Element) -> Element {
     let control = SelectElement::new().expect("failed to create WinUI ComboBox");
     native_control::mount(element, control.erased(), style, &props.view);
     scoped_effect!(
-        element,
         [control, props.enabled] || {
             let _ = control.set_enabled(enabled.get());
         }
     );
     scoped_effect!(
-        element,
         [control, props.value] || {
             let _ = control.set_value(value.get());
         }
     );
     scoped_effect!(
-        element,
         [control, props.on_value_change] || {
             let _ = control.set_on_value_change(
                 on_value_change
@@ -97,7 +94,6 @@ pub fn SelectOption(props: &SelectOptionProps, element: &Element) {
     ));
     element.on_unmount(closure!([context] || (context.remove)(id)));
     scoped_effect!(
-        element,
         [context, props.label, props.value, props.enabled] || {
             (context.upsert)(
                 id,

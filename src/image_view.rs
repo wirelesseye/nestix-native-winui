@@ -49,20 +49,17 @@ pub fn ImageView(props: &ImageViewProps, element: &Element) {
         .expect("failed to register WinUI Image measurement");
 
     scoped_effect!(
-        element,
         [image, props.source] || {
             let _ = image.set_source(source.get());
         }
     );
     scoped_effect!(
-        element,
         [image, props.content_fit] || {
             let _ = image.set_content_fit(content_fit.get());
         }
     );
 
     scoped_effect!(
-        element,
         [
             tree_context,
             style_props,
@@ -84,7 +81,6 @@ pub fn ImageView(props: &ImageViewProps, element: &Element) {
     );
 
     scoped_effect!(
-        element,
         [
             window_context.scale_factor,
             parent_context.parent_node,
@@ -149,7 +145,6 @@ pub fn ImageView(props: &ImageViewProps, element: &Element) {
     );
 
     scoped_effect!(
-        element,
         [
             window_context.scale_factor,
             tree_context,
@@ -169,7 +164,6 @@ pub fn ImageView(props: &ImageViewProps, element: &Element) {
         }
     );
     scoped_effect!(
-        element,
         [
             window_context.scale_factor,
             tree_context,
@@ -188,7 +182,6 @@ pub fn ImageView(props: &ImageViewProps, element: &Element) {
         }
     );
     scoped_effect!(
-        element,
         [tree_context, style_props, props.view.align_self] || {
             let style = style_props.get();
             tree_context.update_style(node_id, |prev| Style {
@@ -199,7 +192,6 @@ pub fn ImageView(props: &ImageViewProps, element: &Element) {
         }
     );
     scoped_effect!(
-        element,
         [tree_context, parent_context.parent_node, image] || {
             if parent_node.is_some()
                 && let Some(layout) = tree_context.layout(node_id)

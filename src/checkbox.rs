@@ -16,25 +16,21 @@ pub fn Checkbox(props: &CheckboxProps, element: &Element) {
     native_control::mount(element, control.erased(), style.clone(), &props.view);
 
     scoped_effect!(
-        element,
         [control, props.title] || {
             let _ = control.set_title(title.get());
         }
     );
     scoped_effect!(
-        element,
         [control, props.enabled] || {
             let _ = control.set_enabled(enabled.get());
         }
     );
     scoped_effect!(
-        element,
         [control, props.checked] || {
             let _ = control.set_checked(checked.get());
         }
     );
     scoped_effect!(
-        element,
         [control, props.on_checked_change] || {
             let _ = control.set_on_checked_change(
                 on_checked_change
@@ -44,7 +40,6 @@ pub fn Checkbox(props: &CheckboxProps, element: &Element) {
         }
     );
     scoped_effect!(
-        element,
         [
             control,
             style,

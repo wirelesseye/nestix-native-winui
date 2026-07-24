@@ -17,31 +17,26 @@ pub fn RadioButton(props: &RadioButtonProps, element: &Element) {
     native_control::mount(element, control.erased(), style.clone(), &props.view);
 
     scoped_effect!(
-        element,
         [control, props.title] || {
             let _ = control.set_title(title.get());
         }
     );
     scoped_effect!(
-        element,
         [control, props.enabled] || {
             let _ = control.set_enabled(enabled.get());
         }
     );
     scoped_effect!(
-        element,
         [control, props.group] || {
             let _ = control.set_group(group.get());
         }
     );
     scoped_effect!(
-        element,
         [control, props.selected] || {
             let _ = control.set_selected(selected.get());
         }
     );
     scoped_effect!(
-        element,
         [control, props.on_select] || {
             let _ = control.set_on_select(
                 on_select
@@ -51,7 +46,6 @@ pub fn RadioButton(props: &RadioButtonProps, element: &Element) {
         }
     );
     scoped_effect!(
-        element,
         [
             control,
             style,

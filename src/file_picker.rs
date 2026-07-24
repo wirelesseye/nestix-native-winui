@@ -37,7 +37,6 @@ pub fn FilePicker(props: &FilePickerProps, element: &Element) {
     let window = element.context::<WindowContext>().unwrap();
     let registration = Rc::new(RefCell::new(None::<FilePickerRegistration>));
     scoped_effect!(
-        element,
         [props.controller, registration, window.window] || {
             registration.borrow_mut().take();
             registration
