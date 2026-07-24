@@ -1,0 +1,11 @@
+[package]
+name = "generate-nestix-native-winui-bindings"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+nestix-native-winui-build = { path = "../../nestix-native-winui-build" }
+windows-bindgen = { git = "https://github.com/microsoft/windows-rs.git", rev = "c166957" }
+
+[workspace]

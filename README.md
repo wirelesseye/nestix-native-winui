@@ -2,78 +2,80 @@
 
 Experimental WinUI backend for `nestix-native`.
 
-## Prerequisites
+## Requirements
 
 - Windows with the MSVC Rust toolchain.
-- PowerShell.
-- Network access to NuGet for first-time setup.
-- Windows App Runtime 1.8 installed for running framework-dependent apps.
+- PowerShell and network access the first time the pinned Windows App SDK
+  package is downloaded.
 
-The crate generates Rust bindings from Windows App SDK `.winmd` metadata with `windows-bindgen`. The metadata is downloaded into a local `.packages/` directory, which is intentionally ignored by Git.
+Applications do not need the Windows App Runtime installed. The
+`nestix-native-winui-build` helper creates an unpackaged, self-contained build
+using the target architecture's Windows App Runtime MSIX.
 
-## First-Time Setup
+## Application setup
 
-From this crate root:
+Add the runtime crate and the application-owned build helper:
 
-```powershell
-.\scripts\fetch-windows-app-sdk.ps1
+```toml
+[dependencies]
+nestix-native-winui = { git = "https://github.com/wirelesseye/nestix-native-winui.git" }
+
+[build-dependencies]
+nestix-native-winui-build = { git = "https://github.com/wirelesseye/nestix-native-winui.git" }
 ```
 
-This downloads and extracts the exact Windows App SDK NuGet packages expected by `build.rs`:
+Call the helper from the application's `build.rs`:
 
-- `Microsoft.WindowsAppSDK` `1.8.260529003`
-- `Microsoft.WindowsAppSDK.WinUI` `1.8.260528001`
-- `Microsoft.WindowsAppSDK.Foundation` `1.8.260527000`
-- `Microsoft.WindowsAppSDK.Base` `1.8.251216001`
-- `Microsoft.WindowsAppSDK.InteractiveExperiences` `1.8.260525001`
-
-To redownload and re-extract everything:
-
-```powershell
-.\scripts\fetch-windows-app-sdk.ps1 -Force
+```rust
+fn main() {
+    nestix_native_winui_build::configure();
+}
 ```
 
-## Build
+Then build or run normally:
 
 ```powershell
-cargo check
+cargo run
+cargo build --release
 ```
 
-The build script:
+The helper:
 
-- reads `.winmd` metadata from `.packages/`,
-- generates WinUI bindings into Cargo's `OUT_DIR`,
-- links `Microsoft.WindowsAppRuntime.Bootstrap.lib`,
-- copies `Microsoft.WindowsAppRuntime.Bootstrap.dll` and `resources.pri` next to the built executable.
+- downloads and verifies the pinned Windows App SDK NuGet packages when they
+  are not already cached;
+- extracts the target architecture's Windows App Runtime framework MSIX;
+- stages its native runtime, metadata, resources, and locale files beside the
+  executable;
+- embeds the registration-free WinRT and DPI-awareness manifest into the final
+  application executable.
 
-## Run Examples
+Distribute the executable together with the DLL, PRI, WinMD, XAML, XBF,
+resource, and locale files staged at the root of its Cargo profile directory.
+Cargo's `build`, `deps`, and `incremental` bookkeeping directories are not
+part of the application.
 
-```powershell
-cargo run -p basic-winui
-```
+## Repository layout
 
-or:
+- `nestix-native-winui` is the runtime library workspace member.
+- `nestix-native-winui-build` is the application build helper and another
+  workspace member.
+- `examples/*` are workspace example applications.
+- `tools/generate-bindings` is a maintainer-only tool outside the normal
+  workspace build.
 
-```powershell
-cargo run -p tabs
-```
+## Regenerating bindings and deployment metadata
 
-## Runtime Notes
+Rust bindings are committed under `nestix-native-winui/src/bindings.rs`, so
+consumer builds do not run `windows-bindgen` and do not require a source-local
+`.packages` directory.
 
-The local `.packages/` folder is enough for build-time metadata and bootstrap import libraries, but it does not install the Windows App Runtime framework package globally.
-
-If runtime bootstrap fails, install the Windows App Runtime 1.8 framework package or switch this crate to a self-contained deployment flow.
-
-## Regenerating Bindings
-
-Bindings are generated on every build from the metadata in `.packages/`. If the Windows App SDK package versions change, update both:
-
-- `scripts/fetch-windows-app-sdk.ps1`
-- the version constants in `build.rs`
-
-Then run:
+After changing the pinned Windows App SDK packages or binding filters:
 
 ```powershell
 .\scripts\fetch-windows-app-sdk.ps1 -Force
-cargo check
+.\scripts\generate-bindings.ps1
+.\scripts\generate-self-contained-manifest.ps1
 ```
+
+Package versions and SHA-256 checksums used by consumer builds are defined in
+`nestix-native-winui-build`.

@@ -8,5 +8,8 @@ env_logger = { version = "0.11.8" }
 nanoid = "0.4.0"
 nestix = { git = "https://github.com/wirelesseye/nestix.git" }
 nestix-native = { git = "https://github.com/wirelesseye/nestix-native.git", default-features = false }
-nestix-native-winui = { path = "../.." }
+nestix-native-winui = { path = "../../nestix-native-winui" }
 rand = "0.9"
+
+[build-dependencies]
+nestix-native-winui-build = { path = "../../nestix-native-winui-build" }

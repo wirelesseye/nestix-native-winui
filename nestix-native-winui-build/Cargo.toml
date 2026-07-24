@@ -1,0 +1,7 @@
+[package]
+name = "nestix-native-winui-build"
+version = "0.1.0"
+edition = "2024"
+description = "Build-time support for self-contained nestix-native-winui applications"
+
+[dependencies]

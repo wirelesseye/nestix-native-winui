@@ -7,4 +7,7 @@ edition = "2024"
 env_logger = "0.11.8"
 nestix = { git = "https://github.com/wirelesseye/nestix.git" }
 nestix-native = { git = "https://github.com/wirelesseye/nestix-native.git", default-features = false }
-nestix-native-winui = { path = "../.." }
+nestix-native-winui = { path = "../../nestix-native-winui" }
+
+[build-dependencies]
+nestix-native-winui-build = { path = "../../nestix-native-winui-build" }

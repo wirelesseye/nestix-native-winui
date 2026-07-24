@@ -1,0 +1,467 @@
+use std::{cell::RefCell, rc::Rc};
+
+use nestix::{
+    Element, callback, closure, component, components::ContextProvider, layout, scoped_effect,
+};
+use nestix_native_core::{
+    ChildOrder, Dimension, FlexViewProps, StyleContext, StyleScope, TreeContext, matched_style,
+    resolved_flex_view_style, style_align_items, style_align_self, style_dimension,
+    style_flex_basis, style_flex_direction, style_flex_grow, style_flex_shrink, style_flex_wrap,
+    style_gap, style_justify_content, style_margin, style_padding,
+    utils::{gap_to_taffy, inset_to_taffy, margin_to_taffy, padding_to_taffy},
+};
+use taffy::{NodeId, Size, Style};
+
+use crate::{
+    WindowContext,
+    contexts::ParentContext,
+    xaml::{CanvasElement, XamlElement},
+};
+
+fn apply_canvas_layout(
+    tree_context: &TreeContext,
+    parent_node: Option<NodeId>,
+    node_id: NodeId,
+    canvas: &CanvasElement,
+) {
+    if parent_node.is_some()
+        && let Some(layout) = tree_context.layout(node_id)
+    {
+        let _ = canvas.set_layout(
+            layout.location.x.into(),
+            layout.location.y.into(),
+            layout.size.width.into(),
+            layout.size.height.into(),
+        );
+    }
+}
+
+#[component]
+pub fn FlexView(props: &FlexViewProps, element: &Element) -> Element {
+    const DEFAULT_CLASSES: [&str; 2] = ["__FlexView", "__winui_FlexView"];
+
+    let window_context = element.context::<WindowContext>().unwrap();
+    let tree_context = element.context::<TreeContext>().unwrap();
+    let parent_context = element.context::<ParentContext>().unwrap();
+    let style_context = element.context::<StyleContext>();
+    let style_props = matched_style(
+        style_context,
+        element,
+        props.class.clone(),
+        &DEFAULT_CLASSES,
+    );
+    let effective_style = resolved_flex_view_style(style_props.clone(), props);
+
+    let canvas = CanvasElement::new().expect("failed to create WinUI Canvas");
+    element.provide_handle(canvas.erased());
+
+    let node_id = tree_context.create_node(false);
+    element.on_place(closure!(
+        [canvas, parent_context] | placement | {
+            parent_context.place_child(canvas.erased(), Some(node_id), placement);
+        }
+    ));
+
+    element.on_unmount(closure!(
+        [canvas, parent_context] || {
+            if let Some(remove_child) = &parent_context.remove_child {
+                remove_child(&canvas, Some(node_id));
+            }
+        }
+    ));
+
+    scoped_effect!(
+        [canvas, style_props, props.bg_color] || {
+            let style_props = style_props.get();
+            let bg_color = bg_color.get().or_else(|| {
+                style_props
+                    .as_ref()
+                    .and_then(|style_props| style_props.bg_color)
+            });
+            let _ = canvas.set_background_color(bg_color);
+        }
+    );
+
+    scoped_effect!(
+        [
+            tree_context,
+            style_props,
+            props.view.flex_grow,
+            props.view.flex_basis,
+            props.view.flex_shrink,
+            window_context.scale_factor
+        ] || {
+            let style_props = style_props.get();
+            tree_context.update_style(node_id, |prev| Style {
+                flex_grow: style_flex_grow(style_props.as_ref(), flex_grow.get()),
+                flex_basis: style_flex_basis(style_props.as_ref(), flex_basis.get())
+                    .to_taffy(scale_factor.get()),
+                flex_shrink: style_flex_shrink(style_props.as_ref(), flex_shrink.get()),
+                ..prev
+            });
+            tree_context.refresh();
+        }
+    );
+
+    scoped_effect!(
+        [
+            window_context.scale_factor,
+            tree_context,
+            parent_context.parent_node,
+            style_props,
+            props.view.width,
+            props.view.height,
+        ] || {
+            let scale_factor = scale_factor.get();
+            let style_props = style_props.get();
+            let width = style_dimension(
+                style_props.as_ref(),
+                width.get(),
+                Dimension::Auto,
+                |style| style.width,
+            );
+            let height = style_dimension(
+                style_props.as_ref(),
+                height.get(),
+                Dimension::Auto,
+                |style| style.height,
+            );
+
+            if parent_node.is_some() {
+                tree_context.update_style(node_id, |prev| Style {
+                    size: Size {
+                        width: width.to_taffy(scale_factor),
+                        height: height.to_taffy(scale_factor),
+                    },
+                    ..prev
+                });
+            }
+            tree_context.refresh();
+        }
+    );
+
+    scoped_effect!(
+        [
+            window_context.scale_factor,
+            tree_context,
+            style_props,
+            props.view.left,
+            props.view.top
+        ] || {
+            let scale_factor = scale_factor.get();
+            let style_props = style_props.get();
+            let left =
+                style_dimension(style_props.as_ref(), left.get(), Dimension::Auto, |style| {
+                    style.left
+                });
+            let top = style_dimension(style_props.as_ref(), top.get(), Dimension::Auto, |style| {
+                style.top
+            });
+            tree_context.update_style(node_id, |prev| Style {
+                inset: inset_to_taffy(left, top, scale_factor),
+                ..prev
+            });
+            tree_context.refresh();
+        }
+    );
+
+    scoped_effect!(
+        [
+            window_context.scale_factor,
+            tree_context,
+            style_props,
+            props.view.margin()
+        ] || {
+            let scale_factor = scale_factor.get();
+            let style_props = style_props.get();
+            tree_context.update_style(node_id, |prev| Style {
+                margin: margin_to_taffy(
+                    style_margin(style_props.as_ref(), margin.get()),
+                    scale_factor,
+                ),
+                ..prev
+            });
+            tree_context.refresh();
+        }
+    );
+
+    scoped_effect!(
+        [
+            window_context.scale_factor,
+            tree_context,
+            style_props,
+            props.container.padding()
+        ] || {
+            let scale_factor = scale_factor.get();
+            let style_props = style_props.get();
+            tree_context.update_style(node_id, |prev| Style {
+                padding: padding_to_taffy(
+                    style_padding(style_props.as_ref(), padding.get()),
+                    scale_factor,
+                ),
+                ..prev
+            });
+            tree_context.refresh();
+        }
+    );
+
+    scoped_effect!(
+        [tree_context, style_props, props.view.align_self] || {
+            let style_props = style_props.get();
+            tree_context.update_style(node_id, |prev| Style {
+                align_self: style_align_self(style_props.as_ref(), align_self.get()).to_taffy(),
+                ..prev
+            });
+            tree_context.refresh();
+        }
+    );
+
+    scoped_effect!(
+        [
+            window_context.scale_factor,
+            tree_context,
+            style_props,
+            props.gap
+        ] || {
+            let scale_factor = scale_factor.get();
+            let style_props = style_props.get();
+            let gap = gap_to_taffy(style_gap(style_props.as_ref(), gap.get()), scale_factor);
+            tree_context.update_style(node_id, |prev| Style {
+                gap: Size {
+                    width: gap,
+                    height: gap,
+                },
+                ..prev
+            });
+            tree_context.refresh();
+        }
+    );
+
+    scoped_effect!(
+        [tree_context, style_props, props.flex_direction] || {
+            let style_props = style_props.get();
+            tree_context.update_style(node_id, |prev| Style {
+                flex_direction: style_flex_direction(style_props.as_ref(), flex_direction.get())
+                    .to_taffy(),
+                ..prev
+            });
+            tree_context.refresh();
+        }
+    );
+
+    scoped_effect!(
+        [tree_context, style_props, props.align_items] || {
+            let style_props = style_props.get();
+            tree_context.update_style(node_id, |prev| Style {
+                align_items: style_align_items(style_props.as_ref(), align_items.get()).to_taffy(),
+                ..prev
+            });
+            tree_context.refresh();
+        }
+    );
+
+    scoped_effect!(
+        [tree_context, style_props, props.justify_content] || {
+            let style_props = style_props.get();
+            tree_context.update_style(node_id, |prev| Style {
+                justify_content: style_justify_content(style_props.as_ref(), justify_content.get())
+                    .to_taffy(),
+                ..prev
+            });
+            tree_context.refresh();
+        }
+    );
+
+    scoped_effect!(
+        [tree_context, style_props, props.flex_wrap] || {
+            let style_props = style_props.get();
+            tree_context.update_style(node_id, |prev| Style {
+                flex_wrap: style_flex_wrap(style_props.as_ref(), flex_wrap.get()).to_taffy(),
+                ..prev
+            });
+            tree_context.refresh();
+        }
+    );
+
+    scoped_effect!(
+        [tree_context, parent_context.parent_node, canvas] || {
+            apply_canvas_layout(&tree_context, parent_node, node_id, &canvas);
+        }
+    );
+
+    let child_order = Rc::new(RefCell::new(ChildOrder::<XamlElement>::new()));
+
+    layout! {
+        StyleScope(
+            .class = props.class.clone(),
+            .default_classes = DEFAULT_CLASSES,
+            .effective_style = effective_style,
+        ) {
+            ContextProvider<ParentContext>(
+                ParentContext {
+                    add_child: Some(callback!([tree_context, canvas, child_order] |child: XamlElement,
+                    child_node: Option<taffy::NodeId> | {
+                        let predecessor = child_order.borrow().last_key();
+                        child_order
+                            .borrow_mut()
+                            .place(child.clone(), child_node, predecessor);
+                        let _ = canvas.append_child(child);
+                        let nodes = child_order.borrow().taffy_nodes();
+                        tree_context.set_children(node_id, &nodes);
+                        tree_context.refresh();
+                    })),
+                    insert_child: Some(callback!([tree_context, canvas, child_order] |child: XamlElement,
+                    child_node: Option<taffy::NodeId>,
+                    predecessor: Option<XamlElement> | {
+                        child_order.borrow_mut().place(
+                            child.clone(),
+                            child_node,
+                            predecessor.clone(),
+                        );
+                        let _ = canvas.insert_child_after(child, predecessor.as_ref());
+                        let nodes = child_order.borrow().taffy_nodes();
+                        tree_context.set_children(node_id, &nodes);
+                        tree_context.refresh();
+                    })),
+                    remove_child: Some(callback!([tree_context, canvas, child_order] |child: &XamlElement,
+                    _: Option<taffy::NodeId> | {
+                        let _ = canvas.remove_child(child);
+                        child_order.borrow_mut().remove(child.clone());
+                        let nodes = child_order.borrow().taffy_nodes();
+                        tree_context.set_children(node_id, &nodes);
+                        tree_context.refresh();
+                    })),
+                    parent_node: Some(node_id)
+                },
+            ) {
+                $(props.children.clone())
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::apply_canvas_layout;
+    use crate::xaml::CanvasElement;
+    use nestix_native_core::TreeContext;
+    use taffy::{
+        AlignItems, Dimension, FlexDirection, LengthPercentage, LengthPercentageAuto, Rect, Size,
+        Style, prelude::FromLength,
+    };
+
+    #[test]
+    fn tree_context_computes_row_grow_alignment_padding_and_margin() {
+        let tree = TreeContext::new();
+        let root = tree.create_node(false);
+        let fixed = tree.create_node(true);
+        let growing = tree.create_node(true);
+
+        tree.update_style(root, |prev| Style {
+            size: Size {
+                width: Dimension::from_length(200.0),
+                height: Dimension::from_length(100.0),
+            },
+            padding: Rect {
+                left: LengthPercentage::length(10.0),
+                right: LengthPercentage::length(10.0),
+                top: LengthPercentage::length(10.0),
+                bottom: LengthPercentage::length(10.0),
+            },
+            flex_direction: FlexDirection::Row,
+            align_items: Some(AlignItems::Center),
+            ..prev
+        });
+        tree.update_style(fixed, |prev| Style {
+            size: Size {
+                width: Dimension::from_length(20.0),
+                height: Dimension::from_length(20.0),
+            },
+            margin: Rect {
+                left: LengthPercentageAuto::length(5.0),
+                ..Rect::zero()
+            },
+            ..prev
+        });
+        tree.update_style(growing, |prev| Style {
+            size: Size {
+                width: Dimension::from_length(20.0),
+                height: Dimension::from_length(20.0),
+            },
+            flex_grow: 1.0,
+            ..prev
+        });
+        tree.add_child(root, fixed);
+        tree.add_child(root, growing);
+        tree.set_root_node(Some(root));
+        tree.refresh();
+
+        let fixed_layout = tree.layout(fixed).unwrap();
+        let growing_layout = tree.layout(growing).unwrap();
+        assert_eq!(
+            (fixed_layout.location.x, fixed_layout.location.y),
+            (15.0, 40.0)
+        );
+        assert_eq!(
+            (fixed_layout.size.width, fixed_layout.size.height),
+            (20.0, 20.0)
+        );
+        assert_eq!(
+            (growing_layout.location.x, growing_layout.location.y),
+            (35.0, 40.0)
+        );
+        assert_eq!(
+            (growing_layout.size.width, growing_layout.size.height),
+            (155.0, 20.0)
+        );
+    }
+
+    #[test]
+    fn host_managed_root_does_not_apply_its_taffy_layout() {
+        let tree = TreeContext::new();
+        let root = tree.create_node(false);
+        tree.update_style(root, |prev| Style {
+            size: Size {
+                width: Dimension::from_length(320.0),
+                height: Dimension::from_length(240.0),
+            },
+            ..prev
+        });
+        tree.set_root_node(Some(root));
+        tree.refresh();
+
+        let canvas = CanvasElement::new().unwrap();
+        apply_canvas_layout(&tree, None, root, &canvas);
+
+        assert_eq!(canvas.cached_layout(), None);
+    }
+
+    #[test]
+    fn nested_flex_view_applies_its_taffy_layout() {
+        let tree = TreeContext::new();
+        let parent = tree.create_node(false);
+        let child = tree.create_node(false);
+        tree.update_style(parent, |prev| Style {
+            size: Size {
+                width: Dimension::from_length(320.0),
+                height: Dimension::from_length(240.0),
+            },
+            ..prev
+        });
+        tree.update_style(child, |prev| Style {
+            size: Size {
+                width: Dimension::from_length(320.0),
+                height: Dimension::from_length(240.0),
+            },
+            ..prev
+        });
+        tree.add_child(parent, child);
+        tree.set_root_node(Some(parent));
+        tree.refresh();
+
+        let canvas = CanvasElement::new().unwrap();
+        apply_canvas_layout(&tree, Some(parent), child, &canvas);
+
+        assert_eq!(canvas.cached_layout(), Some((0.0, 0.0, 320.0, 240.0)));
+    }
+}

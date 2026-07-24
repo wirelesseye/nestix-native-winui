@@ -7,6 +7,7 @@ $ErrorActionPreference = "Stop"
 
 $packages = @(
     @{ Id = "Microsoft.WindowsAppSDK"; Version = "1.8.260529003" },
+    @{ Id = "Microsoft.WindowsAppSDK.Runtime"; Version = "1.8.260529003" },
     @{ Id = "Microsoft.WindowsAppSDK.WinUI"; Version = "1.8.260528001" },
     @{ Id = "Microsoft.WindowsAppSDK.Foundation"; Version = "1.8.260527000" },
     @{ Id = "Microsoft.WindowsAppSDK.Base"; Version = "1.8.251216001" },

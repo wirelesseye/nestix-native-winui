@@ -75,6 +75,7 @@ dependencies = [
  "nestix",
  "nestix-native",
  "nestix-native-winui",
+ "nestix-native-winui-build",
 ]
 
 [[package]]
@@ -103,6 +104,7 @@ dependencies = [
  "nestix",
  "nestix-native",
  "nestix-native-winui",
+ "nestix-native-winui-build",
 ]
 
 [[package]]
@@ -159,6 +161,7 @@ dependencies = [
  "nestix",
  "nestix-native",
  "nestix-native-winui",
+ "nestix-native-winui-build",
 ]
 
 [[package]]
@@ -198,6 +201,7 @@ dependencies = [
  "nestix",
  "nestix-native",
  "nestix-native-winui",
+ "nestix-native-winui-build",
 ]
 
 [[package]]
@@ -208,6 +212,7 @@ dependencies = [
  "nestix",
  "nestix-native",
  "nestix-native-winui",
+ "nestix-native-winui-build",
 ]
 
 [[package]]
@@ -312,6 +317,7 @@ dependencies = [
  "nestix",
  "nestix-native",
  "nestix-native-winui",
+ "nestix-native-winui-build",
 ]
 
 [[package]]
@@ -384,7 +390,6 @@ dependencies = [
  "nestix-native-core",
  "taffy",
  "windows",
- "windows-bindgen",
  "windows-collections",
  "windows-core",
  "windows-future",
@@ -392,6 +397,10 @@ dependencies = [
  "windows-reference",
  "windows-time",
 ]
+
+[[package]]
+name = "nestix-native-winui-build"
+version = "0.1.0"
 
 [[package]]
 name = "nestix-signal"
@@ -611,6 +620,7 @@ dependencies = [
  "nestix",
  "nestix-native",
  "nestix-native-winui",
+ "nestix-native-winui-build",
  "rand 0.9.4",
 ]
 
@@ -684,6 +694,7 @@ dependencies = [
  "nestix",
  "nestix-native",
  "nestix-native-winui",
+ "nestix-native-winui-build",
 ]
 
 [[package]]
@@ -736,16 +747,6 @@ dependencies = [
  "windows-numerics",
  "windows-reference",
  "windows-time",
-]
-
-[[package]]
-name = "windows-bindgen"
-version = "0.66.0"
-source = "git+https://github.com/microsoft/windows-rs.git?rev=c166957#c1669575e6de5fce058afd2467467be75197ca09"
-dependencies = [
- "proc-macro2",
- "quote",
- "windows-metadata",
 ]
 
 [[package]]
@@ -807,11 +808,6 @@ checksum = "f0805222e57f7521d6a62e36fa9163bc891acd422f971defe97d64e70d0a4fe5"
 [[package]]
 name = "windows-link"
 version = "0.2.1"
-source = "git+https://github.com/microsoft/windows-rs.git?rev=c166957#c1669575e6de5fce058afd2467467be75197ca09"
-
-[[package]]
-name = "windows-metadata"
-version = "0.60.0"
 source = "git+https://github.com/microsoft/windows-rs.git?rev=c166957#c1669575e6de5fce058afd2467467be75197ca09"
 
 [[package]]
