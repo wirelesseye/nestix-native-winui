@@ -31,37 +31,37 @@ fn FormControlsApp() -> Element {
 
     let styles = style! {
         .content {
-            padding: 28px;
+            padding: 28 px;
         }
 
         .heading {
-            font_size: 24px;
-            margin_bottom: 6px;
+            font_size: 24 px;
+            margin_bottom: 6 px;
         }
 
         .description {
-            margin_bottom: 22px;
+            margin_bottom: 22 px;
         }
 
         .label {
-            margin_bottom: 6px;
+            margin_bottom: 6 px;
         }
 
         .field {
-            margin_bottom: 16px;
+            margin_bottom: 16 px;
         }
 
         .choice {
-            margin_right: 18px;
+            margin_right: 18 px;
         }
 
         .actions {
-            margin_top: 8px;
-            margin_bottom: 18px;
+            margin_top: 8 px;
+            margin_bottom: 18 px;
         }
 
         .actions > .__Button {
-            margin_right: 10px;
+            margin_right: 10 px;
         }
     };
 

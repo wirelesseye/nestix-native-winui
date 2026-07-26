@@ -1,7 +1,7 @@
 use nestix::{Element, callback, closure, component, create_state, scoped_effect};
 use nestix_native_core::{
-    Dimension, ImageViewProps, StyleContext, TreeContext, matched_style, style_align_self,
-    style_dimension, style_flex_basis, style_flex_grow, style_flex_shrink, style_margin,
+    ImageViewProps, StyleContext, TreeContext, WithAuto, matched_style, style_align_self,
+    style_flex_basis, style_flex_grow, style_flex_shrink, style_length_with_auto, style_margin,
     utils::{inset_to_taffy, margin_to_taffy},
 };
 use taffy::{
@@ -93,9 +93,10 @@ pub fn ImageView(props: &ImageViewProps, element: &Element) {
             let sf = scale_factor.get();
             let style = style_props.get();
             let intrinsic = intrinsic_size.get();
-            let width = style_dimension(style.as_ref(), width.get(), Dimension::Auto, |s| s.width);
+            let width =
+                style_length_with_auto(style.as_ref(), width.get(), WithAuto::Auto, |s| s.width);
             let height =
-                style_dimension(style.as_ref(), height.get(), Dimension::Auto, |s| s.height);
+                style_length_with_auto(style.as_ref(), height.get(), WithAuto::Auto, |s| s.height);
             let wa = width.is_auto();
             let ha = height.is_auto();
             let ratio = if intrinsic.1 > 0.0 {
@@ -104,16 +105,16 @@ pub fn ImageView(props: &ImageViewProps, element: &Element) {
                 1.0
             };
             let (width, height) = match (width, height) {
-                (Dimension::Auto, Dimension::Auto) => intrinsic,
-                (Dimension::Length(w), Dimension::Auto) => {
+                (WithAuto::Auto, WithAuto::Auto) => intrinsic,
+                (WithAuto::Value(w), WithAuto::Auto) => {
                     let w = w.to_logical::<f32>(sf).0;
                     (w, w / ratio)
                 }
-                (Dimension::Auto, Dimension::Length(h)) => {
+                (WithAuto::Auto, WithAuto::Value(h)) => {
                     let h = h.to_logical::<f32>(sf).0;
                     (h * ratio, h)
                 }
-                (Dimension::Length(w), Dimension::Length(h)) => {
+                (WithAuto::Value(w), WithAuto::Value(h)) => {
                     (w.to_logical::<f32>(sf).0, h.to_logical::<f32>(sf).0)
                 }
             };
@@ -154,8 +155,9 @@ pub fn ImageView(props: &ImageViewProps, element: &Element) {
         ] || {
             let sf = scale_factor.get();
             let style = style_props.get();
-            let left = style_dimension(style.as_ref(), left.get(), Dimension::Auto, |s| s.left);
-            let top = style_dimension(style.as_ref(), top.get(), Dimension::Auto, |s| s.top);
+            let left =
+                style_length_with_auto(style.as_ref(), left.get(), WithAuto::Auto, |s| s.left);
+            let top = style_length_with_auto(style.as_ref(), top.get(), WithAuto::Auto, |s| s.top);
             tree_context.update_style(node_id, |prev| Style {
                 inset: inset_to_taffy(left, top, sf),
                 ..prev

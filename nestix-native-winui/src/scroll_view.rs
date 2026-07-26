@@ -5,9 +5,9 @@ use nestix::{
     scoped_effect,
 };
 use nestix_native_core::{
-    Dimension, ScrollViewProps, StyleContext, StyleScope, TreeContext, matched_style,
-    resolved_view_style, style_align_self, style_dimension, style_flex_basis, style_flex_grow,
-    style_flex_shrink, style_margin,
+    ScrollViewProps, StyleContext, StyleScope, TreeContext, WithAuto, matched_style,
+    resolved_view_style, style_align_self, style_flex_basis, style_flex_grow, style_flex_shrink,
+    style_length_with_auto, style_margin,
     utils::{inset_to_taffy, margin_to_taffy},
 };
 use taffy::{Size, Style, style_helpers::FromLength};
@@ -92,11 +92,13 @@ pub fn ScrollView(props: &ScrollViewProps, element: &Element) -> Element {
         ] || {
             let scale = scale_factor.get();
             let style = styles.get();
-            let width = style_dimension(style.as_ref(), width.get(), Dimension::Auto, |s| s.width);
+            let width =
+                style_length_with_auto(style.as_ref(), width.get(), WithAuto::Auto, |s| s.width);
             let height =
-                style_dimension(style.as_ref(), height.get(), Dimension::Auto, |s| s.height);
-            let left = style_dimension(style.as_ref(), left.get(), Dimension::Auto, |s| s.left);
-            let top = style_dimension(style.as_ref(), top.get(), Dimension::Auto, |s| s.top);
+                style_length_with_auto(style.as_ref(), height.get(), WithAuto::Auto, |s| s.height);
+            let left =
+                style_length_with_auto(style.as_ref(), left.get(), WithAuto::Auto, |s| s.left);
+            let top = style_length_with_auto(style.as_ref(), top.get(), WithAuto::Auto, |s| s.top);
             tree_context.update_style(node, |prev| Style {
                 flex_direction: taffy::FlexDirection::Column,
                 size: Size {

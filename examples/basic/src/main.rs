@@ -29,15 +29,15 @@ fn ExampleApp() -> Element {
         }
 
         .panel {
-            margin: 24px;
+            margin: 24 px;
         }
 
         .stack > .__Text, .stack > .__Button {
-            margin_bottom: 12px;
+            margin_bottom: 12 px;
         }
 
         .actions > .__Button {
-            margin_right: 8px;
+            margin_right: 8 px;
         }
     };
 

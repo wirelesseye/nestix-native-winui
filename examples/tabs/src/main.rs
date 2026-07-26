@@ -37,25 +37,25 @@ fn ExampleApp() -> Element {
         }
 
         .counter {
-            padding: 10px;
+            padding: 10 px;
         }
 
         .counter > .__Text, .counter > .__Button {
-            margin_bottom: 12px;
+            margin_bottom: 12 px;
         }
 
         .toolbar {
-            margin_bottom: 12px;
+            margin_bottom: 12 px;
         }
 
         .toolbar > .__Input {
-            margin_right: 8px;
+            margin_right: 8 px;
         }
 
         .todo_item {
-            padding_horizontal: 10px;
-            padding_vertical: 8px;
-            gap: 6px;
+            padding_horizontal: 10 px;
+            padding_vertical: 8 px;
+            gap: 6 px;
         }
     };
 

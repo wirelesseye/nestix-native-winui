@@ -5,9 +5,9 @@ use nestix::{
     create_state, layout, scoped_effect,
 };
 use nestix_native_core::{
-    Dimension as NativeDimension, StyleContext, StyleScope, TabViewItemProps, TabViewProps,
-    TreeContext, matched_style, resolved_view_style, style_align_self, style_dimension,
-    style_flex_basis, style_flex_grow, style_flex_shrink, style_margin,
+    StyleContext, StyleScope, TabViewItemProps, TabViewProps, TreeContext,
+    WithAuto as NativeLengthWithAuto, matched_style, resolved_view_style, style_align_self,
+    style_flex_basis, style_flex_grow, style_flex_shrink, style_length_with_auto, style_margin,
     utils::{inset_to_taffy, margin_to_taffy},
 };
 use taffy::{Dimension, Size, Style, prelude::FromLength};
@@ -107,16 +107,16 @@ pub fn TabView(props: &TabViewProps, element: &Element) -> Element {
         ] || {
             let scale_factor = scale_factor.get();
             let style_props = style_props.get();
-            let width = style_dimension(
+            let width = style_length_with_auto(
                 style_props.as_ref(),
                 width.get(),
-                NativeDimension::Auto,
+                NativeLengthWithAuto::Auto,
                 |style| style.width,
             );
-            let height = style_dimension(
+            let height = style_length_with_auto(
                 style_props.as_ref(),
                 height.get(),
-                NativeDimension::Auto,
+                NativeLengthWithAuto::Auto,
                 |style| style.height,
             );
             if parent_node.is_some() {
@@ -142,16 +142,16 @@ pub fn TabView(props: &TabViewProps, element: &Element) -> Element {
         ] || {
             let scale_factor = scale_factor.get();
             let style_props = style_props.get();
-            let left = style_dimension(
+            let left = style_length_with_auto(
                 style_props.as_ref(),
                 left.get(),
-                NativeDimension::Auto,
+                NativeLengthWithAuto::Auto,
                 |style| style.left,
             );
-            let top = style_dimension(
+            let top = style_length_with_auto(
                 style_props.as_ref(),
                 top.get(),
-                NativeDimension::Auto,
+                NativeLengthWithAuto::Auto,
                 |style| style.top,
             );
             tree_context.update_style(node_id, |prev| Style {

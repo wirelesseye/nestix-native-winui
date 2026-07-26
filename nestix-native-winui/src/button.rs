@@ -1,8 +1,8 @@
 use nestix::{Element, callback, closure, component, create_state, scoped_effect};
 use nestix_native_core::{
-    ButtonProps, Dimension, Rect, StyleContext, TreeContext, matched_style, resolve_font_props,
-    style_align_self, style_dimension, style_flex_basis, style_flex_grow, style_flex_shrink,
-    style_margin, style_padding_with_default,
+    ButtonProps, Length, Rect, StyleContext, TreeContext, WithAuto, matched_style,
+    resolve_font_props, style_align_self, style_flex_basis, style_flex_grow, style_flex_shrink,
+    style_length_with_auto, style_margin, style_padding_with_default,
     utils::{inset_to_taffy, margin_to_taffy},
 };
 use taffy::{Size, Style, prelude::FromLength};
@@ -99,7 +99,7 @@ pub fn Button(props: &ButtonProps, element: &Element) {
             let padding = style_padding_with_default(
                 style_props.get().as_ref(),
                 padding.get(),
-                Dimension::Auto,
+                WithAuto::Auto,
             );
             let _ = button.set_padding(logical_padding(padding, scale_factor.get()));
         }
@@ -138,25 +138,25 @@ pub fn Button(props: &ButtonProps, element: &Element) {
             let scale_factor = scale_factor.get();
             let style_props = style_props.get();
             let measured = intrinsic_size.get();
-            let width = style_dimension(
+            let width = style_length_with_auto(
                 style_props.as_ref(),
                 width.get(),
-                Dimension::Auto,
+                WithAuto::Auto,
                 |style| style.width,
             );
-            let height = style_dimension(
+            let height = style_length_with_auto(
                 style_props.as_ref(),
                 height.get(),
-                Dimension::Auto,
+                WithAuto::Auto,
                 |style| style.height,
             );
             let width = match width {
-                Dimension::Auto => measured.0,
-                Dimension::Length(length) => length.to_logical::<f32>(scale_factor).0,
+                WithAuto::Auto => measured.0,
+                WithAuto::Value(length) => length.to_logical::<f32>(scale_factor).0,
             };
             let height = match height {
-                Dimension::Auto => measured.1,
-                Dimension::Length(length) => length.to_logical::<f32>(scale_factor).0,
+                WithAuto::Auto => measured.1,
+                WithAuto::Value(length) => length.to_logical::<f32>(scale_factor).0,
             };
 
             tree_context.update_style(node_id, |prev| Style {
@@ -181,12 +181,13 @@ pub fn Button(props: &ButtonProps, element: &Element) {
             let scale_factor = scale_factor.get();
             let style_props = style_props.get();
             let left =
-                style_dimension(style_props.as_ref(), left.get(), Dimension::Auto, |style| {
+                style_length_with_auto(style_props.as_ref(), left.get(), WithAuto::Auto, |style| {
                     style.left
                 });
-            let top = style_dimension(style_props.as_ref(), top.get(), Dimension::Auto, |style| {
-                style.top
-            });
+            let top =
+                style_length_with_auto(style_props.as_ref(), top.get(), WithAuto::Auto, |style| {
+                    style.top
+                });
             tree_context.update_style(node_id, |prev| Style {
                 inset: inset_to_taffy(left, top, scale_factor),
                 ..prev
@@ -242,7 +243,7 @@ pub fn Button(props: &ButtonProps, element: &Element) {
     );
 }
 
-fn logical_padding(padding: Rect<Dimension>, scale_factor: f64) -> Option<Rect<f64>> {
+fn logical_padding(padding: Rect<WithAuto<Length>>, scale_factor: f64) -> Option<Rect<f64>> {
     if [padding.top, padding.bottom, padding.left, padding.right]
         .into_iter()
         .all(|dimension| dimension.is_auto())
@@ -250,9 +251,9 @@ fn logical_padding(padding: Rect<Dimension>, scale_factor: f64) -> Option<Rect<f
         return None;
     }
 
-    let logical = |dimension| match dimension {
-        Dimension::Auto => 0.0,
-        Dimension::Length(value) => value.to_logical::<f64>(scale_factor).0,
+    let logical = |dimension: WithAuto<Length>| match dimension {
+        WithAuto::Auto => 0.0,
+        WithAuto::Value(value) => value.to_logical::<f64>(scale_factor).0,
     };
     Some(Rect {
         top: logical(padding.top),
@@ -265,17 +266,17 @@ fn logical_padding(padding: Rect<Dimension>, scale_factor: f64) -> Option<Rect<f
 #[cfg(test)]
 mod tests {
     use super::logical_padding;
-    use nestix_native_core::{Dimension, Rect};
+    use nestix_native_core::{Rect, WithAuto};
 
     #[test]
     fn all_auto_padding_preserves_the_native_button_default() {
         assert_eq!(
             logical_padding(
                 Rect {
-                    top: Dimension::Auto,
-                    bottom: Dimension::Auto,
-                    left: Dimension::Auto,
-                    right: Dimension::Auto,
+                    top: WithAuto::Auto,
+                    bottom: WithAuto::Auto,
+                    left: WithAuto::Auto,
+                    right: WithAuto::Auto,
                 },
                 1.0,
             ),
@@ -288,10 +289,10 @@ mod tests {
         assert_eq!(
             logical_padding(
                 Rect {
-                    top: Dimension::Auto,
-                    bottom: Dimension::Auto,
-                    left: Dimension::from(12),
-                    right: Dimension::Auto,
+                    top: WithAuto::Auto,
+                    bottom: WithAuto::Auto,
+                    left: WithAuto::from(12),
+                    right: WithAuto::Auto,
                 },
                 1.0,
             ),

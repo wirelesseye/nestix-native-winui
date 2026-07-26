@@ -1,7 +1,7 @@
 use nestix::{Element, callback, closure, component, create_state, scoped_effect};
 use nestix_native_core::{
-    Dimension, InputProps, StyleContext, TreeContext, matched_style, style_align_self,
-    style_dimension, style_flex_basis, style_flex_grow, style_flex_shrink, style_margin,
+    InputProps, StyleContext, TreeContext, WithAuto, matched_style, style_align_self,
+    style_flex_basis, style_flex_grow, style_flex_shrink, style_length_with_auto, style_margin,
     utils::{inset_to_taffy, margin_to_taffy},
 };
 use taffy::{Size, Style, prelude::FromLength};
@@ -97,25 +97,25 @@ pub fn Input(props: &InputProps, element: &Element) {
             let scale_factor = scale_factor.get();
             let style_props = style_props.get();
             let measured = intrinsic_size.get();
-            let width = style_dimension(
+            let width = style_length_with_auto(
                 style_props.as_ref(),
                 width.get(),
-                Dimension::Auto,
+                WithAuto::Auto,
                 |style| style.width,
             );
-            let height = style_dimension(
+            let height = style_length_with_auto(
                 style_props.as_ref(),
                 height.get(),
-                Dimension::Auto,
+                WithAuto::Auto,
                 |style| style.height,
             );
             let width = match width {
-                Dimension::Auto => measured.0,
-                Dimension::Length(length) => length.to_logical::<f32>(scale_factor).0,
+                WithAuto::Auto => measured.0,
+                WithAuto::Value(length) => length.to_logical::<f32>(scale_factor).0,
             };
             let height = match height {
-                Dimension::Auto => measured.1,
-                Dimension::Length(length) => length.to_logical::<f32>(scale_factor).0,
+                WithAuto::Auto => measured.1,
+                WithAuto::Value(length) => length.to_logical::<f32>(scale_factor).0,
             };
 
             tree_context.update_style(node_id, |prev| Style {
@@ -140,12 +140,13 @@ pub fn Input(props: &InputProps, element: &Element) {
             let scale_factor = scale_factor.get();
             let style_props = style_props.get();
             let left =
-                style_dimension(style_props.as_ref(), left.get(), Dimension::Auto, |style| {
+                style_length_with_auto(style_props.as_ref(), left.get(), WithAuto::Auto, |style| {
                     style.left
                 });
-            let top = style_dimension(style_props.as_ref(), top.get(), Dimension::Auto, |style| {
-                style.top
-            });
+            let top =
+                style_length_with_auto(style_props.as_ref(), top.get(), WithAuto::Auto, |style| {
+                    style.top
+                });
             tree_context.update_style(node_id, |prev| Style {
                 inset: inset_to_taffy(left, top, scale_factor),
                 ..prev

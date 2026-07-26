@@ -19,8 +19,8 @@ fn StyleMacroApp() -> Element {
     let styles = style! {
         // Class selectors and selector lists.
         .app {
-            padding: 28px;
-            gap: 18px;
+            padding: 28 px;
+            gap: 18 px;
         }
 
         .heading, .card_title {
@@ -29,7 +29,7 @@ fn StyleMacroApp() -> Element {
         }
 
         .heading {
-            font_size: 26px;
+            font_size: 26 px;
         }
 
         .intro {
@@ -38,11 +38,11 @@ fn StyleMacroApp() -> Element {
 
         // Nested child, compound, pseudo-class, and sibling selectors.
         .gallery {
-            gap: 12px;
+            gap: 12 px;
 
             > .card {
-                padding: 16px;
-                gap: 7px;
+                padding: 16 px;
+                gap: 7 px;
                 bg_color: #EEF2F8;
 
                 &:first_child {
@@ -54,11 +54,11 @@ fn StyleMacroApp() -> Element {
                 }
 
                 + .card {
-                    margin_top: 4px;
+                    margin_top: 4 px;
                 }
 
                 > .card_title {
-                    font_size: 18px;
+                    font_size: 18 px;
                 }
 
                 // An implicit nested selector is a descendant selector.
@@ -68,7 +68,7 @@ fn StyleMacroApp() -> Element {
 
                 // `>>` spells an explicit descendant combinator.
                 >> .action {
-                    margin_top: 5px;
+                    margin_top: 5 px;
                 }
             }
         }
@@ -86,7 +86,7 @@ fn StyleMacroApp() -> Element {
         .actions {
             flex_direction: row;
             align_items: center;
-            gap: 8px;
+            gap: 8 px;
         }
     };
 
