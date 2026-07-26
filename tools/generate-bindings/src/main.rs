@@ -70,6 +70,7 @@ fn main() {
         "Microsoft.UI.WindowId".to_string(),
         "Microsoft.UI.Dispatching.DispatcherQueue".to_string(),
         "Microsoft.UI.Dispatching.DispatcherQueueHandler".to_string(),
+        "Microsoft.UI.Dispatching.DispatcherQueueTimer".to_string(),
         "Microsoft.Windows.Storage.Pickers.FileOpenPicker".to_string(),
         "Microsoft.Windows.Storage.Pickers.FileSavePicker".to_string(),
         "Microsoft.Windows.Storage.Pickers.FolderPicker".to_string(),

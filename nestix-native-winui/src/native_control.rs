@@ -1,7 +1,10 @@
+use std::rc::Rc;
+
 use nestix::{Computed, Element, callback, closure, create_state, scoped_effect};
 use nestix_native_core::{
-    ResolvedStyle, TreeContext, ViewProps, WithAuto, style_align_self, style_flex_basis,
-    style_flex_grow, style_flex_shrink, style_length_with_auto, style_margin,
+    AnimatedStyle, ResolvedStyle, TreeContext, ViewProps, WithAuto, resolved_view_style,
+    style_align_self, style_flex_basis, style_flex_grow, style_flex_shrink, style_length_with_auto,
+    style_margin,
     utils::{inset_to_taffy, margin_to_taffy},
 };
 use taffy::{NodeId, Size, Style, prelude::FromLength};
@@ -17,6 +20,17 @@ pub(crate) fn mount(
     let window_context = element.context::<WindowContext>().unwrap();
     let tree_context = element.context::<TreeContext>().unwrap();
     let parent_context = element.context::<ParentContext>().unwrap();
+    let target_style = resolved_view_style(style_props, props);
+    let animated_style = Rc::new(AnimatedStyle::new(
+        window_context.animation.clone(),
+        target_style.get(),
+    ));
+    let style_props = animated_style.value();
+    scoped_effect!(
+        [animated_style, target_style, window_context.scale_factor] || {
+            animated_style.set_target(target_style.get(), scale_factor.get());
+        }
+    );
 
     element.provide_handle(control.clone());
     let node_id = tree_context.create_node(true);

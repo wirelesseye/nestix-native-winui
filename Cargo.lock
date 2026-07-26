@@ -12,6 +12,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "animations-example"
+version = "0.1.0"
+dependencies = [
+ "env_logger",
+ "nestix",
+ "nestix-native",
+ "nestix-native-winui",
+ "nestix-native-winui-build",
+]
+
+[[package]]
 name = "anstream"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

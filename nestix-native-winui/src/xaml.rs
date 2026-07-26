@@ -9,7 +9,9 @@ use std::{
 };
 
 use nestix::Shared;
-use nestix_native_core::{FontStyle, Rect, ResolvedFontProps, TitleBarMode};
+use nestix_native_core::{
+    AnimationRuntime, FontStyle, Rect, ResolvedFontProps, TitleBarMode, TreeContext,
+};
 use windows::Storage::Streams::{
     DataWriter, IRandomAccessStream as NativeRandomAccessStream, InMemoryRandomAccessStream,
 };
@@ -96,7 +98,7 @@ enum XamlKind {
     TabViewItem(TabViewItemState),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 struct WindowState {
     title: String,
     title_bar_mode: TitleBarMode,
@@ -111,6 +113,44 @@ struct WindowState {
     resize_handler: Rc<RefCell<Option<ResizeHandlerState>>>,
     close_requested_callback: Rc<RefCell<Option<RegisteredClickCallback>>>,
     close_requested_handler: Rc<RefCell<Option<CloseRequestedHandlerState>>>,
+    animation: Rc<AnimationRuntime>,
+    tree_context: Rc<TreeContext>,
+    animation_timer: Option<Rc<AnimationTimerState>>,
+}
+
+impl std::fmt::Debug for WindowState {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("WindowState")
+            .field("title", &self.title)
+            .field("title_bar_mode", &self.title_bar_mode)
+            .field("visible", &self.visible)
+            .field("resizable", &self.resizable)
+            .field("width", &self.width)
+            .field("height", &self.height)
+            .field("realized", &self.realized)
+            .finish_non_exhaustive()
+    }
+}
+
+struct AnimationTimerState {
+    timer: crate::bindings::Microsoft::UI::Dispatching::DispatcherQueueTimer,
+    _revoker: EventRevoker,
+    _callback: RegisteredClickCallback,
+}
+
+impl std::fmt::Debug for AnimationTimerState {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("AnimationTimerState")
+            .finish_non_exhaustive()
+    }
+}
+
+impl Drop for AnimationTimerState {
+    fn drop(&mut self) {
+        let _ = self.timer.Stop();
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -472,8 +512,13 @@ typed_element!(TabViewElement);
 typed_element!(TabViewItemElement);
 
 impl WindowElement {
-    pub(crate) fn new(title: String, title_bar_mode: TitleBarMode) -> Result<Self> {
-        XamlElement::window(title, title_bar_mode).map(Self)
+    pub(crate) fn new(
+        title: String,
+        title_bar_mode: TitleBarMode,
+        animation: Rc<AnimationRuntime>,
+        tree_context: Rc<TreeContext>,
+    ) -> Result<Self> {
+        XamlElement::window(title, title_bar_mode, animation, tree_context).map(Self)
     }
 
     pub(crate) fn close(&self) -> Result<()> {
@@ -769,7 +814,12 @@ impl TabViewItemElement {
 }
 
 impl XamlElement {
-    fn window(title: String, title_bar_mode: TitleBarMode) -> Result<Self> {
+    fn window(
+        title: String,
+        title_bar_mode: TitleBarMode,
+        animation: Rc<AnimationRuntime>,
+        tree_context: Rc<TreeContext>,
+    ) -> Result<Self> {
         Ok(Self::new(XamlKind::Window(WindowState {
             title,
             title_bar_mode,
@@ -784,6 +834,9 @@ impl XamlElement {
             resize_handler: Rc::new(RefCell::new(None)),
             close_requested_callback: Rc::new(RefCell::new(None)),
             close_requested_handler: Rc::new(RefCell::new(None)),
+            animation,
+            tree_context,
+            animation_timer: None,
         })))
     }
 
@@ -2174,11 +2227,48 @@ impl WindowState {
         self.realized = Some(window);
         self.set_window_size()?;
         if let Some(window) = self.realized.clone() {
+            self.install_animation_timer(&window)?;
             self.attach_scale_factor_handler(&window)?;
             self.attach_resize_handler(&window)?;
             self.attach_close_requested_handler(&window)?;
             apply_window_resizable(&window, self.resizable)?;
         }
+        Ok(())
+    }
+
+    fn install_animation_timer(&mut self, window: &Window) -> Result<()> {
+        let timer = window.DispatcherQueue()?.CreateTimer()?;
+        timer.SetInterval(windows_time::TimeSpan { duration: 166_667 })?;
+        timer.SetIsRepeating(true)?;
+
+        let animation = self.animation.clone();
+        let tree_context = self.tree_context.clone();
+        let tick_timer = timer.clone();
+        let callback: Rc<dyn Fn()> = Rc::new(move || {
+            tree_context.begin_batch();
+            let active = animation.tick();
+            tree_context.end_batch();
+            if !active {
+                let _ = tick_timer.Stop();
+            }
+        });
+        let callback = RegisteredClickCallback::register(Shared::from(callback));
+        let callback_id = callback.id();
+        let revoker = timer.Tick(move |_, _| {
+            RegisteredClickCallback::invoke(callback_id);
+        })?;
+
+        let request_timer = timer.clone();
+        let request_frame: Rc<dyn Fn()> = Rc::new(move || {
+            let _ = request_timer.Start();
+        });
+        self.animation
+            .set_frame_requester(Shared::from(request_frame));
+        self.animation_timer = Some(Rc::new(AnimationTimerState {
+            timer,
+            _revoker: revoker,
+            _callback: callback,
+        }));
         Ok(())
     }
 
@@ -2967,7 +3057,7 @@ fn set_canvas_background(canvas: &Canvas, color: Option<nestix_native_core::Colo
 mod tests {
     use super::{CanvasElement, SelectOptionData, XamlElement, XamlKind};
     use nestix::Shared;
-    use nestix_native_core::{TitleBarMode, TreeContext};
+    use nestix_native_core::{AnimationRuntime, TitleBarMode, TreeContext};
     use std::rc::Rc;
 
     #[test]
@@ -3140,7 +3230,13 @@ mod tests {
 
     #[test]
     fn title_bar_mode_is_cached_before_realization() {
-        let window = XamlElement::window("title".into(), TitleBarMode::System).unwrap();
+        let window = XamlElement::window(
+            "title".into(),
+            TitleBarMode::System,
+            Rc::new(AnimationRuntime::new()),
+            Rc::new(TreeContext::new()),
+        )
+        .unwrap();
         window.set_title_bar_mode(TitleBarMode::Overlay).unwrap();
 
         let kind = window.0.kind.borrow();
@@ -3152,7 +3248,13 @@ mod tests {
 
     #[test]
     fn window_visibility_and_resizability_are_cached_before_realization() {
-        let window = XamlElement::window("title".into(), TitleBarMode::System).unwrap();
+        let window = XamlElement::window(
+            "title".into(),
+            TitleBarMode::System,
+            Rc::new(AnimationRuntime::new()),
+            Rc::new(TreeContext::new()),
+        )
+        .unwrap();
         window.set_window_visible(false).unwrap();
         window.set_window_resizable(false).unwrap();
 

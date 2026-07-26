@@ -1,7 +1,10 @@
+use std::rc::Rc;
+
 use nestix::{Element, callback, closure, component, create_state, scoped_effect};
 use nestix_native_core::{
-    InputProps, StyleContext, TreeContext, WithAuto, matched_style, style_align_self,
-    style_flex_basis, style_flex_grow, style_flex_shrink, style_length_with_auto, style_margin,
+    AnimatedStyle, InputProps, StyleContext, TreeContext, WithAuto, matched_style,
+    resolved_view_style, style_align_self, style_flex_basis, style_flex_grow, style_flex_shrink,
+    style_length_with_auto, style_margin,
     utils::{inset_to_taffy, margin_to_taffy},
 };
 use taffy::{Size, Style, prelude::FromLength};
@@ -16,11 +19,22 @@ pub fn Input(props: &InputProps, element: &Element) {
     let tree_context = element.context::<TreeContext>().unwrap();
     let parent_context = element.context::<ParentContext>().unwrap();
     let style_context = element.context::<StyleContext>();
-    let style_props = matched_style(
+    let matched_style_props = matched_style(
         style_context,
         element,
         props.class.clone(),
         &DEFAULT_CLASSES,
+    );
+    let target_style = resolved_view_style(matched_style_props, &props.view);
+    let animated_style = Rc::new(AnimatedStyle::new(
+        window_context.animation.clone(),
+        target_style.get(),
+    ));
+    let style_props = animated_style.value();
+    scoped_effect!(
+        [animated_style, target_style, window_context.scale_factor] || {
+            animated_style.set_target(target_style.get(), scale_factor.get());
+        }
     );
 
     let text_box = TextBoxElement::new(props.value.get()).expect("failed to create WinUI TextBox");

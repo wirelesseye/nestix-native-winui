@@ -4,8 +4,8 @@ use nestix::{
     Element, callback, closure, component, components::ContextProvider, layout, scoped_effect,
 };
 use nestix_native_core::{
-    ChildOrder, FlexViewProps, StyleContext, StyleScope, TreeContext, WithAuto, matched_style,
-    resolved_flex_view_style, style_align_items, style_align_self, style_flex_basis,
+    AnimatedStyle, ChildOrder, FlexViewProps, StyleContext, StyleScope, TreeContext, WithAuto,
+    matched_style, resolved_flex_view_style, style_align_items, style_align_self, style_flex_basis,
     style_flex_direction, style_flex_grow, style_flex_shrink, style_flex_wrap, style_gap,
     style_justify_content, style_length_with_auto, style_margin, style_padding,
     utils::{gap_to_taffy, inset_to_taffy, margin_to_taffy, padding_to_taffy},
@@ -44,13 +44,23 @@ pub fn FlexView(props: &FlexViewProps, element: &Element) -> Element {
     let tree_context = element.context::<TreeContext>().unwrap();
     let parent_context = element.context::<ParentContext>().unwrap();
     let style_context = element.context::<StyleContext>();
-    let style_props = matched_style(
+    let matched_style_props = matched_style(
         style_context,
         element,
         props.class.clone(),
         &DEFAULT_CLASSES,
     );
-    let effective_style = resolved_flex_view_style(style_props.clone(), props);
+    let effective_style = resolved_flex_view_style(matched_style_props.clone(), props);
+    let animated_style = Rc::new(AnimatedStyle::new(
+        window_context.animation.clone(),
+        effective_style.get(),
+    ));
+    let style_props = animated_style.value();
+    scoped_effect!(
+        [animated_style, effective_style, window_context.scale_factor] || {
+            animated_style.set_target(effective_style.get(), scale_factor.get());
+        }
+    );
 
     let canvas = CanvasElement::new().expect("failed to create WinUI Canvas");
     element.provide_handle(canvas.erased());
@@ -71,8 +81,8 @@ pub fn FlexView(props: &FlexViewProps, element: &Element) -> Element {
     ));
 
     scoped_effect!(
-        [canvas, style_props, props.bg_color] || {
-            let style_props = style_props.get();
+        [canvas, matched_style_props, props.bg_color] || {
+            let style_props = matched_style_props.get();
             let bg_color = bg_color.get().or_else(|| {
                 style_props
                     .as_ref()
