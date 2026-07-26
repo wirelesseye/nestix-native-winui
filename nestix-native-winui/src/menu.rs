@@ -609,6 +609,7 @@ pub fn MenuBar(props: &MenuBarProps, element: &Element) -> Element {
         );
         scoped_effect!(
             [tree, parent.parent_node, control] || {
+                tree.layout_revision().get();
                 if parent_node.is_some()
                     && let Some(layout) = tree.layout(node_id)
                 {

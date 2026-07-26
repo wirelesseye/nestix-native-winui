@@ -159,6 +159,7 @@ pub(crate) fn mount(
     );
     scoped_effect!(
         [tree_context, parent_context.parent_node, control] || {
+            tree_context.layout_revision().get();
             if parent_node.is_some()
                 && let Some(layout) = tree_context.layout(node_id)
             {

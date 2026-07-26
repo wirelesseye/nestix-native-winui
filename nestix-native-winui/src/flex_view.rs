@@ -24,6 +24,7 @@ fn apply_canvas_layout(
     node_id: NodeId,
     canvas: &CanvasElement,
 ) {
+    tree_context.layout_revision().get();
     if parent_node.is_some()
         && let Some(layout) = tree_context.layout(node_id)
     {
@@ -353,6 +354,8 @@ pub fn FlexView(props: &FlexViewProps, element: &Element) -> Element {
 
 #[cfg(test)]
 mod tests {
+    use std::rc::Rc;
+
     use super::apply_canvas_layout;
     use crate::xaml::CanvasElement;
     use nestix_native_core::TreeContext;
@@ -474,5 +477,42 @@ mod tests {
         apply_canvas_layout(&tree, Some(parent), child, &canvas);
 
         assert_eq!(canvas.cached_layout(), Some((0.0, 0.0, 320.0, 240.0)));
+    }
+
+    #[test]
+    fn completed_layout_pass_reapplies_unchanged_node_geometry() {
+        let tree = Rc::new(TreeContext::new());
+        let parent = tree.create_node(false);
+        let child = tree.create_node(false);
+        tree.update_style(parent, |prev| Style {
+            size: Size {
+                width: Dimension::from_length(320.0),
+                height: Dimension::from_length(240.0),
+            },
+            ..prev
+        });
+        tree.update_style(child, |prev| Style {
+            size: Size {
+                width: Dimension::from_length(120.0),
+                height: Dimension::from_length(80.0),
+            },
+            ..prev
+        });
+        tree.add_child(parent, child);
+        tree.set_root_node(Some(parent));
+
+        let canvas = CanvasElement::new().unwrap();
+        let effect_tree = tree.clone();
+        let effect_canvas = canvas.clone();
+        let _layout_effect = nestix::effect(move || {
+            apply_canvas_layout(&effect_tree, Some(parent), child, &effect_canvas);
+        });
+
+        tree.refresh();
+        assert_eq!(canvas.cached_layout(), Some((0.0, 0.0, 120.0, 80.0)));
+
+        canvas.set_layout(0.0, 0.0, 1.0, 1.0).unwrap();
+        tree.refresh();
+        assert_eq!(canvas.cached_layout(), Some((0.0, 0.0, 120.0, 80.0)));
     }
 }

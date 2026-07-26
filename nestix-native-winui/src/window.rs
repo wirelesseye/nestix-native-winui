@@ -1,4 +1,4 @@
-use std::rc::Rc;
+use std::{cell::RefCell, rc::Rc};
 
 use nestix::{
     Element, Layout, callback, closure, component, components::ContextProvider, computed,
@@ -33,6 +33,7 @@ pub fn Window(props: &WindowProps, element: &Element) -> Element {
     let scale_factor = create_state(1.0);
     let tree_context = Rc::new(TreeContext::new());
     let animation = Rc::new(AnimationRuntime::new());
+    let content = Rc::new(RefCell::new(None::<(XamlElement, Option<taffy::NodeId>)>));
 
     let window = WindowElement::new(
         props.title.get(),
@@ -81,20 +82,17 @@ pub fn Window(props: &WindowProps, element: &Element) -> Element {
     window
         .set_resized(Some(callback!([
             tree_context,
+            content,
             scale_factor,
             props.on_resize
         ] |size: nestix_native_core::dpi::Size| {
             let logical_size: LogicalSize<f32> = size.to_logical(scale_factor.get());
-            if let Some(root_node) = tree_context.root_node() {
-                tree_context.update_style(root_node, |prev| Style {
-                    size: Size {
-                        width: Dimension::from_length(logical_size.width),
-                        height: Dimension::from_length(logical_size.height),
-                    },
-                    ..prev
-                });
-                tree_context.refresh();
-            }
+            sync_window_content(
+                &tree_context,
+                &content,
+                logical_size.width as f64,
+                logical_size.height as f64,
+            );
             if let Some(on_resize) = on_resize.get() {
                 on_resize(size);
             }
@@ -143,7 +141,7 @@ pub fn Window(props: &WindowProps, element: &Element) -> Element {
         }
     );
     scoped_effect!(
-        [window, tree_context, scale_factor, presented_size] || {
+        [window, tree_context, content, scale_factor, presented_size] || {
             let style = presented_size.get().unwrap_or_default();
             let logical_size = LogicalSize::new(
                 logical_length(style.width, 800.0, scale_factor.get()),
@@ -151,16 +149,12 @@ pub fn Window(props: &WindowProps, element: &Element) -> Element {
             );
             let physical_size: PhysicalSize<i32> = logical_size.to_physical(scale_factor.get());
             let _ = window.set_size(physical_size.width, physical_size.height);
-            if let Some(root_node) = tree_context.root_node() {
-                tree_context.update_style(root_node, |prev| Style {
-                    size: Size {
-                        width: Dimension::from_length(logical_size.width as f32),
-                        height: Dimension::from_length(logical_size.height as f32),
-                    },
-                    ..prev
-                });
-                tree_context.refresh();
-            }
+            sync_window_content(
+                &tree_context,
+                &content,
+                logical_size.width,
+                logical_size.height,
+            );
         }
     );
 
@@ -182,30 +176,28 @@ pub fn Window(props: &WindowProps, element: &Element) -> Element {
                 ) {
                     ContextProvider<ParentContext>(
                         ParentContext {
-                            add_child: Some(callback!([window, tree_context, presented_size, scale_factor] |child: XamlElement,
+                            add_child: Some(callback!([window, tree_context, content, presented_size, scale_factor] |child: XamlElement,
                             child_node: Option<taffy::NodeId> | {
                                 let style = presented_size.get().unwrap_or_default();
                                 let width = logical_length(style.width, 800.0, scale_factor.get());
                                 let height =
                                     logical_length(style.height, 600.0, scale_factor.get());
-                                let _ = child.set_layout(0.0, 0.0, width, height);
-                                let _ = window.append_child(child);
+                                let _ = window.append_child(child.clone());
+                                content.replace(Some((child, child_node)));
                                 tree_context.set_root_node(child_node);
-                                if let Some(child_node) = child_node {
-                                    tree_context.update_style(child_node, |prev| Style {
-                                        size: Size {
-                                            width: Dimension::from_length(width as f32),
-                                            height: Dimension::from_length(height as f32),
-                                        },
-                                        ..prev
-                                    });
-                                    tree_context.refresh();
-                                }
+                                sync_window_content(&tree_context, &content, width, height);
                             })),
                             insert_child: None,
-                            remove_child: Some(callback!([window, tree_context] |child: &XamlElement,
+                            remove_child: Some(callback!([window, tree_context, content] |child: &XamlElement,
                             _: Option<taffy::NodeId> | {
                                 let _ = window.remove_child(child);
+                                if content
+                                    .borrow()
+                                    .as_ref()
+                                    .is_some_and(|(current, _)| current == child)
+                                {
+                                    content.borrow_mut().take();
+                                }
                                 tree_context.set_root_node(None);
                             })),
                             parent_node: None
@@ -219,6 +211,33 @@ pub fn Window(props: &WindowProps, element: &Element) -> Element {
     }
 }
 
+fn sync_window_content(
+    tree_context: &TreeContext,
+    content: &RefCell<Option<(XamlElement, Option<taffy::NodeId>)>>,
+    width: f64,
+    height: f64,
+) {
+    let current = content.borrow().clone();
+    let Some((content, root_node)) = current else {
+        return;
+    };
+    // The window content must remain auto-sized and stretched by WinUI. Giving
+    // it an explicit width/height prevents it from tracking the client area,
+    // which in turn means its SizeChanged handler never sees window resizes.
+    // Only Taffy's root receives the concrete client size.
+    let _ = content;
+    if let Some(root_node) = root_node {
+        tree_context.update_style(root_node, |prev| Style {
+            size: Size {
+                width: Dimension::from_length(width as f32),
+                height: Dimension::from_length(height as f32),
+            },
+            ..prev
+        });
+        tree_context.refresh();
+    }
+}
+
 fn logical_length(
     value: Option<NativeLengthWithAuto<Length>>,
     fallback: f64,
@@ -227,5 +246,37 @@ fn logical_length(
     match value {
         Some(NativeLengthWithAuto::Value(value)) => value.to_logical::<f64>(scale_factor).0,
         Some(NativeLengthWithAuto::Auto) | None => fallback,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::cell::RefCell;
+
+    use nestix_native_core::TreeContext;
+
+    use super::sync_window_content;
+    use crate::xaml::CanvasElement;
+
+    #[test]
+    fn window_content_size_updates_layout_tree_without_fixing_native_root_size() {
+        let tree = TreeContext::new();
+        let root = tree.create_node(false);
+        tree.set_root_node(Some(root));
+        let canvas = CanvasElement::new().unwrap();
+        let content = RefCell::new(Some((canvas.erased(), Some(root))));
+
+        sync_window_content(&tree, &content, 900.0, 620.0);
+
+        assert_eq!(canvas.cached_layout(), None);
+        let layout = tree.layout(root).unwrap();
+        assert_eq!((layout.size.width, layout.size.height), (900.0, 620.0));
+    }
+
+    #[test]
+    fn window_content_size_is_safe_before_content_mounts() {
+        let tree = TreeContext::new();
+        let content = RefCell::new(None);
+        sync_window_content(&tree, &content, 900.0, 620.0);
     }
 }

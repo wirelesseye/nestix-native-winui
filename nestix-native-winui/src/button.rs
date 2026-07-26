@@ -242,6 +242,7 @@ pub fn Button(props: &ButtonProps, element: &Element) {
 
     scoped_effect!(
         [tree_context, parent_context.parent_node, button] || {
+            tree_context.layout_revision().get();
             if parent_node.is_some()
                 && let Some(layout) = tree_context.layout(node_id)
             {

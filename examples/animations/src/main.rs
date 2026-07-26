@@ -5,7 +5,8 @@ use nestix::{
     Element, callback, component, computed, create_state, layout, mount_root, unmount_root,
 };
 use nestix_native::{
-    AlignItems, AnimationSpec, Button, Easing, FlexDirection, FlexView, Length, Root, StyleProvider, Text, Window, animate, style,
+    AlignItems, AnimationSpec, Button, Easing, FlexDirection, FlexView, Length, Root,
+    StyleProvider, Text, Window, animate, style,
 };
 use nestix_native_winui::WINUI_BACKEND;
 
@@ -19,7 +20,6 @@ fn main() {
         }
     });
 }
-
 
 #[component]
 fn AnimationApp() -> Element {

@@ -204,6 +204,7 @@ pub fn TabView(props: &TabViewProps, element: &Element) -> Element {
 
     scoped_effect!(
         [tree_context, parent_context.parent_node, tab_view] || {
+            tree_context.layout_revision().get();
             if parent_node.is_some()
                 && let Some(layout) = tree_context.layout(node_id)
             {

@@ -1750,6 +1750,13 @@ impl XamlElement {
         framework_element.SetHeight(layout.height)?;
         Canvas::SetLeft(&ui_element, layout.x)?;
         Canvas::SetTop(&ui_element, layout.y)?;
+        // Width and height participate in WinUI's measure/arrange pass, while
+        // Canvas.Left and Canvas.Top can be reflected independently. A running
+        // dispatcher timer can otherwise leave the new extent pending until an
+        // unrelated window layout occurs (for example, a resize).
+        framework_element.InvalidateMeasure()?;
+        framework_element.InvalidateArrange()?;
+        framework_element.UpdateLayout()?;
 
         if let XamlKind::Image(element) = &*self.0.kind.borrow()
             && element.content_fit == nestix_native_core::ContentFit::ScaleDown
@@ -2237,7 +2244,8 @@ impl WindowState {
     }
 
     fn install_animation_timer(&mut self, window: &Window) -> Result<()> {
-        let timer = window.DispatcherQueue()?.CreateTimer()?;
+        let dispatcher = window.DispatcherQueue()?;
+        let timer = dispatcher.CreateTimer()?;
         timer.SetInterval(windows_time::TimeSpan { duration: 166_667 })?;
         timer.SetIsRepeating(true)?;
 
@@ -2259,8 +2267,13 @@ impl WindowState {
         })?;
 
         let request_timer = timer.clone();
+        let request_dispatcher = dispatcher.clone();
         let request_frame: Rc<dyn Fn()> = Rc::new(move || {
-            let _ = request_timer.Start();
+            let timer = request_timer.clone();
+            let handler = crate::bindings::Microsoft::UI::Dispatching::DispatcherQueueHandler::new(
+                move || timer.Start(),
+            );
+            let _ = request_dispatcher.TryEnqueue(&handler);
         });
         self.animation
             .set_frame_requester(Shared::from(request_frame));

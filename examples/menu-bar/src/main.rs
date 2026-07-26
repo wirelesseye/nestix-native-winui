@@ -74,12 +74,7 @@ fn MenuBarExample() -> Element {
                     }
                 ),
             ) {
-                FlexView(
-                    .align_items = AlignItems::Center,
-                    .justify_content = JustifyContent::Center,
-                    .bg_color = Some(Color::RGB(RGBColor::from_rgb(238, 242, 247))),
-                    .view(.flex_grow = 1.0),
-                ) {
+                FlexView {
                     // On macOS: it is active only while this window is focused.
                     MenuBar(
                         .menu = layout! {
@@ -118,11 +113,18 @@ fn MenuBarExample() -> Element {
                             }
                         },
                     )
-                    Text("This window supplies its own File menu.")
-                    Text(
-                        computed!([status] || format!("Status: {}", status.get())),
-                        $if = show_status.get(),
-                    )
+                    FlexView(
+                        .align_items = AlignItems::Center,
+                        .justify_content = JustifyContent::Center,
+                        .bg_color = Some(Color::RGB(RGBColor::from_rgb(238, 242, 247))),
+                        .view(.flex_grow = 1.0),
+                    ) {
+                        Text("This window supplies its own File menu.")
+                        Text(
+                            computed!([status] || format!("Status: {}", status.get())),
+                            $if = show_status.get(),
+                        )
+                    }
                 }
             }
             Window(

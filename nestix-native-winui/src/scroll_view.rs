@@ -129,6 +129,7 @@ pub fn ScrollView(props: &ScrollViewProps, element: &Element) -> Element {
 
     scoped_effect!(
         [tree_context, subtree_context, parent.parent_node, scroll] || {
+            tree_context.layout_revision().get();
             if parent_node.is_some()
                 && let Some(value) = tree_context.layout(node)
             {
