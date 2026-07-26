@@ -43,12 +43,6 @@ pub fn Window(props: &WindowProps, element: &Element) -> Element {
         .expect("failed to watch WinUI window scale factor");
     element.provide_handle(window.erased());
 
-    element.after_mount(closure!(
-        [window] || {
-            let _ = window.activate();
-        }
-    ));
-
     scoped_effect!(
         [window, props.title] || {
             let _ = window.set_title(title.get());
@@ -58,6 +52,18 @@ pub fn Window(props: &WindowProps, element: &Element) -> Element {
     scoped_effect!(
         [window, props.title_bar_mode] || {
             let _ = window.set_title_bar_mode(title_bar_mode.get());
+        }
+    );
+
+    scoped_effect!(
+        [window, props.visible] || {
+            let _ = window.set_visible(visible.get());
+        }
+    );
+
+    scoped_effect!(
+        [window, props.resizable] || {
+            let _ = window.set_resizable(resizable.get());
         }
     );
 

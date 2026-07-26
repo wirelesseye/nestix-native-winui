@@ -178,7 +178,6 @@ fn realize_pending_windows() -> Result<()> {
     PENDING_WINDOWS.with_borrow(|windows| -> Result<()> {
         for window in windows {
             window.realize()?;
-            window.activate()?;
         }
         Ok(())
     })

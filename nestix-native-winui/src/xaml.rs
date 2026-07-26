@@ -100,6 +100,8 @@ enum XamlKind {
 struct WindowState {
     title: String,
     title_bar_mode: TitleBarMode,
+    visible: bool,
+    resizable: bool,
     width: i32,
     height: i32,
     realized: Option<Window>,
@@ -474,9 +476,6 @@ impl WindowElement {
         XamlElement::window(title, title_bar_mode).map(Self)
     }
 
-    pub(crate) fn activate(&self) -> Result<()> {
-        self.0.activate()
-    }
     pub(crate) fn close(&self) -> Result<()> {
         self.0.close_window()
     }
@@ -485,6 +484,12 @@ impl WindowElement {
     }
     pub(crate) fn set_title_bar_mode(&self, mode: TitleBarMode) -> Result<()> {
         self.0.set_title_bar_mode(mode)
+    }
+    pub(crate) fn set_visible(&self, visible: bool) -> Result<()> {
+        self.0.set_window_visible(visible)
+    }
+    pub(crate) fn set_resizable(&self, resizable: bool) -> Result<()> {
+        self.0.set_window_resizable(resizable)
     }
     pub(crate) fn set_size(&self, width: i32, height: i32) -> Result<()> {
         self.0.set_window_size(width, height)
@@ -768,6 +773,8 @@ impl XamlElement {
         Ok(Self::new(XamlKind::Window(WindowState {
             title,
             title_bar_mode,
+            visible: true,
+            resizable: true,
             width: 200,
             height: 200,
             realized: None,
@@ -921,14 +928,6 @@ impl XamlElement {
             title,
             realized: None,
         })))
-    }
-
-    pub fn activate(&self) -> Result<()> {
-        if !is_xaml_running() {
-            return Ok(());
-        }
-        self.realize()?;
-        self.with_window(|window| window.Activate())
     }
 
     pub fn append_child(&self, child: XamlElement) -> Result<()> {
@@ -1409,6 +1408,32 @@ impl XamlElement {
                         Width: width,
                         Height: height,
                     })?;
+                }
+                Ok(())
+            }
+            other => panic!("XamlElement is not a window: {:?}", other),
+        }
+    }
+
+    fn set_window_visible(&self, visible: bool) -> Result<()> {
+        match &mut *self.0.kind.borrow_mut() {
+            XamlKind::Window(element) => {
+                element.visible = visible;
+                if let Some(window) = &element.realized {
+                    apply_window_visibility(window, visible)?;
+                }
+                Ok(())
+            }
+            other => panic!("XamlElement is not a window: {:?}", other),
+        }
+    }
+
+    fn set_window_resizable(&self, resizable: bool) -> Result<()> {
+        match &mut *self.0.kind.borrow_mut() {
+            XamlKind::Window(element) => {
+                element.resizable = resizable;
+                if let Some(window) = &element.realized {
+                    apply_window_resizable(window, resizable)?;
                 }
                 Ok(())
             }
@@ -1898,6 +1923,7 @@ impl XamlElement {
         if self.0.context_menu.borrow().is_some() {
             self.apply_context_menu()?;
         }
+        self.apply_cached_window_visibility()?;
         Ok(())
     }
 
@@ -2106,17 +2132,15 @@ impl XamlElement {
         }
     }
 
-    fn with_window(&self, callback: impl FnOnce(&Window) -> Result<()>) -> Result<()> {
-        match &*self.0.kind.borrow() {
-            XamlKind::Window(element) => {
-                if let Some(window) = &element.realized {
-                    callback(window)
-                } else {
-                    Ok(())
-                }
-            }
-            _ => Ok(()),
+    fn apply_cached_window_visibility(&self) -> Result<()> {
+        let kind = self.0.kind.borrow();
+        let XamlKind::Window(element) = &*kind else {
+            return Ok(());
+        };
+        if let Some(window) = &element.realized {
+            apply_window_visibility(window, element.visible)?;
         }
+        Ok(())
     }
 
     fn notify_scale_factor_changed(&self) -> Result<()> {
@@ -2153,6 +2177,7 @@ impl WindowState {
             self.attach_scale_factor_handler(&window)?;
             self.attach_resize_handler(&window)?;
             self.attach_close_requested_handler(&window)?;
+            apply_window_resizable(&window, self.resizable)?;
         }
         Ok(())
     }
@@ -2284,6 +2309,23 @@ fn apply_title_bar_mode(window: &Window, mode: TitleBarMode) -> Result<()> {
         .cast::<OverlappedPresenter>()?;
     presenter.SetBorderAndTitleBar(true, mode != TitleBarMode::Hidden)?;
     window.SetExtendsContentIntoTitleBar(mode == TitleBarMode::Overlay)
+}
+
+fn apply_window_visibility(window: &Window, visible: bool) -> Result<()> {
+    if visible {
+        window.Activate()
+    } else {
+        window.AppWindow()?.Hide()
+    }
+}
+
+fn apply_window_resizable(window: &Window, resizable: bool) -> Result<()> {
+    let presenter = window
+        .AppWindow()?
+        .Presenter()?
+        .cast::<OverlappedPresenter>()?;
+    presenter.SetIsResizable(resizable)?;
+    presenter.SetIsMaximizable(resizable)
 }
 
 impl CanvasState {
@@ -3106,5 +3148,19 @@ mod tests {
             panic!("expected window");
         };
         assert_eq!(window.title_bar_mode, TitleBarMode::Overlay);
+    }
+
+    #[test]
+    fn window_visibility_and_resizability_are_cached_before_realization() {
+        let window = XamlElement::window("title".into(), TitleBarMode::System).unwrap();
+        window.set_window_visible(false).unwrap();
+        window.set_window_resizable(false).unwrap();
+
+        let kind = window.0.kind.borrow();
+        let XamlKind::Window(window) = &*kind else {
+            panic!("expected window");
+        };
+        assert!(!window.visible);
+        assert!(!window.resizable);
     }
 }
