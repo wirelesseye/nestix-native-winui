@@ -5,6 +5,8 @@ use nestix_native_core::{RootProps, StyleScope};
 
 use crate::{contexts::AppContext, xaml_app::XamlApp};
 
+const DEFAULT_FONT_SIZE: f64 = 14.0;
+
 thread_local! {
     static APP: OnceCell<Rc<XamlApp>> = const { OnceCell::new() };
 }
@@ -37,7 +39,11 @@ pub fn Root(props: &RootProps, element: &Element) -> Element {
 
     layout! {
         ContextProvider<AppContext>(AppContext { app }) {
-            StyleScope(.class = props.class.clone(), .default_classes = DEFAULT_CLASSES) {
+            StyleScope(
+                .class = props.class.clone(),
+                .default_classes = DEFAULT_CLASSES,
+                .initial_font_size = DEFAULT_FONT_SIZE,
+            ) {
                 $(props.children.clone())
             }
         }

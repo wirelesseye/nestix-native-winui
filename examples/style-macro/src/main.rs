@@ -19,8 +19,10 @@ fn StyleMacroApp() -> Element {
     let styles = style! {
         // Class selectors and selector lists.
         .app {
-            padding: 28 px;
-            gap: 18 px;
+            // Rust tokenizes `em` as an exponent marker when attached to a number,
+            // so the style DSL accepts the CSS unit with whitespace.
+            padding: 2 em;
+            gap: 1.25 em;
         }
 
         .heading, .card_title {
@@ -29,7 +31,7 @@ fn StyleMacroApp() -> Element {
         }
 
         .heading {
-            font_size: 26 px;
+            font_size: 2 em;
         }
 
         .intro {
@@ -38,11 +40,11 @@ fn StyleMacroApp() -> Element {
 
         // Nested child, compound, pseudo-class, and sibling selectors.
         .gallery {
-            gap: 12 px;
+            gap: 0.75 em;
 
             > .card {
-                padding: 16 px;
-                gap: 7 px;
+                padding: 1 em;
+                gap: 0.45 em;
                 bg_color: #EEF2F8;
 
                 &:first_child {
@@ -54,11 +56,11 @@ fn StyleMacroApp() -> Element {
                 }
 
                 + .card {
-                    margin_top: 4 px;
+                    margin_top: 0.25 em;
                 }
 
                 > .card_title {
-                    font_size: 18 px;
+                    font_size: 1.25 em;
                 }
 
                 // An implicit nested selector is a descendant selector.
@@ -68,7 +70,7 @@ fn StyleMacroApp() -> Element {
 
                 // `>>` spells an explicit descendant combinator.
                 >> .action {
-                    margin_top: 5 px;
+                    margin_top: 0.35 em;
                 }
             }
         }
@@ -86,7 +88,7 @@ fn StyleMacroApp() -> Element {
         .actions {
             flex_direction: row;
             align_items: center;
-            gap: 8 px;
+            gap: 0.5 em;
         }
     };
 
