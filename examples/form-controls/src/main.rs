@@ -70,11 +70,13 @@ fn FormControlsApp() -> Element {
             Root {
                 Window(
                     .title = "Nestix Form Controls",
-                    .width = 560,
-                    .height = 680,
-                    .on_close_requested = callback!(|| {
-                        unmount_root().expect("root should be mounted");
-                    }),
+                    .desktop(
+                        .width = 560,
+                        .height = 680,
+                        .on_close_requested = callback!(|| {
+                            unmount_root().expect("root should be mounted");
+                        }),
+                    )
                 ) {
                     FlexView(.class = "content", .view(.flex_grow = 1.0)) {
                         Text("Form controls", .class = "heading")

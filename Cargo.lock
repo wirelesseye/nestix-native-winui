@@ -365,7 +365,7 @@ dependencies = [
 [[package]]
 name = "nestix-native"
 version = "0.1.0"
-source = "git+https://github.com/wirelesseye/nestix-native.git#47b44323bb7a4d2b15f38fecc97caa3f0a670ae8"
+source = "git+https://github.com/wirelesseye/nestix-native.git#5568b98df0a37d0b54a5a8357439568696162d22"
 dependencies = [
  "nestix",
  "nestix-native-core",
@@ -374,7 +374,7 @@ dependencies = [
 [[package]]
 name = "nestix-native-core"
 version = "0.1.0"
-source = "git+https://github.com/wirelesseye/nestix-native.git#47b44323bb7a4d2b15f38fecc97caa3f0a670ae8"
+source = "git+https://github.com/wirelesseye/nestix-native.git#5568b98df0a37d0b54a5a8357439568696162d22"
 dependencies = [
  "dpi",
  "nestix",
@@ -385,7 +385,7 @@ dependencies = [
 [[package]]
 name = "nestix-native-macros"
 version = "0.1.0"
-source = "git+https://github.com/wirelesseye/nestix-native.git#47b44323bb7a4d2b15f38fecc97caa3f0a670ae8"
+source = "git+https://github.com/wirelesseye/nestix-native.git#5568b98df0a37d0b54a5a8357439568696162d22"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",

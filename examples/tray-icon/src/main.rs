@@ -102,9 +102,11 @@ fn TrayIconExample() -> Element {
             if show_window.get() {
                 Window(
                     .title = "Nestix Tray Icon",
-                    .width = 460,
-                    .height = 300,
-                    .on_close_requested = callback!([show_window] || show_window.set(false)),
+                    .desktop(
+                        .width = 460,
+                        .height = 300,
+                        .on_close_requested = callback!([show_window] || show_window.set(false)),
+                    )
                 ) {
                     FlexView(
                         .align_items = AlignItems::Center,

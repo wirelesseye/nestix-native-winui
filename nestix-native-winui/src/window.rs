@@ -37,7 +37,7 @@ pub fn Window(props: &WindowProps, element: &Element) -> Element {
 
     let window = WindowElement::new(
         props.title.get(),
-        props.title_bar_mode.get(),
+        props.desktop.title_bar_mode.get(),
         animation.clone(),
         tree_context.clone(),
     )
@@ -62,7 +62,7 @@ pub fn Window(props: &WindowProps, element: &Element) -> Element {
     );
 
     scoped_effect!(
-        [window, props.title_bar_mode] || {
+        [window, props.desktop.title_bar_mode] || {
             let _ = window.set_title_bar_mode(title_bar_mode.get());
         }
     );
@@ -74,7 +74,7 @@ pub fn Window(props: &WindowProps, element: &Element) -> Element {
     );
 
     scoped_effect!(
-        [window, props.resizable] || {
+        [window, props.desktop.resizable] || {
             let _ = window.set_resizable(resizable.get());
         }
     );
@@ -101,7 +101,7 @@ pub fn Window(props: &WindowProps, element: &Element) -> Element {
 
     window
         .set_close_requested(Some(callback!(
-            [props.on_close_requested] || {
+            [props.desktop.on_close_requested] || {
                 if let Some(on_close_requested) = on_close_requested.get() {
                     on_close_requested();
                 }
@@ -116,7 +116,7 @@ pub fn Window(props: &WindowProps, element: &Element) -> Element {
         &DEFAULT_CLASSES,
     );
     let target_size = computed!(
-        [style_props, props.width, props.height] || {
+        [style_props, props.desktop.width, props.desktop.height] || {
             let mut style = style_props.get().unwrap_or_default();
             style.width = Some(style_length_with_auto(
                 Some(&style),

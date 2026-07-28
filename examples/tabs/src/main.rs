@@ -64,11 +64,13 @@ fn ExampleApp() -> Element {
             Root {
                 Window(
                     .title = "Nestix Tabs",
-                    .width = 520,
-                    .height = 420,
-                    .on_close_requested = callback!(|| {
-                        unmount_root().expect("root should be mounted");
-                    }),
+                    .desktop(
+                        .width = 520,
+                        .height = 420,
+                        .on_close_requested = callback!(|| {
+                            unmount_root().expect("root should be mounted");
+                        }),
+                    )
                 ) {
                     FlexView(.class = "app", .view(.flex_grow = 1.0)) {
                         TabView(.view(.flex_grow = 1.0)) {

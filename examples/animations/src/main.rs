@@ -85,12 +85,14 @@ fn AnimationApp() -> Element {
                 Window(
                     .class = "demo_window",
                     .title = "Nestix Native Animations",
-                    .width = window_width.clone(),
-                    .height = window_height.clone(),
-                    .on_close_requested = callback!(|| {
-                        unmount_root().expect("root should be mounted");
-                    }),
-                    .resizable = false,
+                    .desktop(
+                        .width = window_width.clone(),
+                        .height = window_height.clone(),
+                        .on_close_requested = callback!(|| {
+                            unmount_root().expect("root should be mounted");
+                        }),
+                        .resizable = false,
+                    ),
                 ) {
                     FlexView(.class = "root", .view(.flex_grow = 1.0)) {
                         Text(

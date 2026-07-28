@@ -66,13 +66,15 @@ fn MenuBarExample() -> Element {
             Window(
                 $if = window_menu_open.get(),
                 .title = "Window-specific menu",
-                .width = 480,
-                .height = 300,
-                .on_close_requested = callback!(
-                    [window_menu_open] || {
-                        window_menu_open.set(false);
-                    }
-                ),
+                .desktop(
+                    .width = 480,
+                    .height = 300,
+                    .on_close_requested = callback!(
+                        [window_menu_open] || {
+                            window_menu_open.set(false);
+                        }
+                    ),
+                )
             ) {
                 FlexView {
                     // On macOS: it is active only while this window is focused.
@@ -130,13 +132,15 @@ fn MenuBarExample() -> Element {
             Window(
                 $if = plain_window_open.get(),
                 .title = "No window menu",
-                .width = 480,
-                .height = 240,
-                .on_close_requested = callback!(
-                    [plain_window_open] || {
-                        plain_window_open.set(false);
-                    }
-                ),
+                .desktop(
+                    .width = 480,
+                    .height = 240,
+                    .on_close_requested = callback!(
+                        [plain_window_open] || {
+                            plain_window_open.set(false);
+                        }
+                    ),
+                )
             ) {
                 FlexView(
                     .align_items = AlignItems::Center,
