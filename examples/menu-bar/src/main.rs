@@ -73,8 +73,8 @@ fn MenuBarExample() -> Element {
                         [window_menu_open] || {
                             window_menu_open.set(false);
                         }
-                    ),
-                )
+                    )
+                ),
             ) {
                 FlexView {
                     // On macOS: it is active only while this window is focused.
@@ -139,8 +139,8 @@ fn MenuBarExample() -> Element {
                         [plain_window_open] || {
                             plain_window_open.set(false);
                         }
-                    ),
-                )
+                    )
+                ),
             ) {
                 FlexView(
                     .align_items = AlignItems::Center,

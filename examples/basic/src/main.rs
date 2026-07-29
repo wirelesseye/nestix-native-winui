@@ -51,7 +51,7 @@ fn ExampleApp() -> Element {
                         .height = 320,
                         .on_close_requested = callback!(|| {
                             unmount_root().expect("root should be mounted");
-                        }),
+                        })
                     ),
                     .on_resize = callback!(|size| {
                         println!("{:?}", size);

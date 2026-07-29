@@ -1,0 +1,43 @@
+:root {
+    color-scheme: light dark;
+    font-family: system-ui, sans-serif;
+}
+
+.template-shell {
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
+}
+
+.template-banner {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 8px 16px;
+    color: #24506f;
+    background: rgba(137, 203, 247, 0.24);
+    border-bottom: 1px solid rgba(67, 130, 173, 0.35);
+    font-size: 12px;
+}
+
+[data-nestix-root] {
+    width: auto;
+    height: auto;
+    flex: 1;
+}
+
+.counter-action {
+    display: block;
+    padding: 10px 12px;
+    color: #24506f;
+    background: rgba(137, 203, 247, 0.18);
+    border: 1px solid rgba(67, 130, 173, 0.4);
+    border-radius: 7px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.counter-action:focus-visible {
+    outline: 2px solid #2784c4;
+    outline-offset: 2px;
+}

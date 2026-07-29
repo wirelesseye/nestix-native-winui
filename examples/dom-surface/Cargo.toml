@@ -1,0 +1,16 @@
+[package]
+name = "dom-surface-example"
+version = "0.1.0"
+edition = "2024"
+
+[package.metadata.packager]
+resources = [{ src = "assets/web", target = "web" }]
+
+[dependencies]
+env_logger = "0.11.8"
+nestix = { git = "https://github.com/wirelesseye/nestix.git" }
+nestix-native = { git = "https://github.com/wirelesseye/nestix-native.git", default-features = false, features = ["dom"] }
+nestix-native-winui = { path = "../../nestix-native-winui" }
+
+[build-dependencies]
+nestix-native-winui-build = { path = "../../nestix-native-winui-build" }

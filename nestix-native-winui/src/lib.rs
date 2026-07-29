@@ -18,6 +18,7 @@ pub mod switch;
 pub mod tab_view;
 pub mod text;
 pub mod tray_icon;
+pub mod web_view;
 pub mod window;
 mod window_native;
 mod xaml;
@@ -50,6 +51,7 @@ pub use switch::*;
 pub use tab_view::*;
 pub use text::*;
 pub use tray_icon::*;
+pub use web_view::*;
 pub use window::*;
 
 use nestix::create_element;
@@ -144,6 +146,10 @@ impl Backend for WinUiBackend {
 
     fn create_window(&self, props: nestix_native_core::WindowProps) -> Option<nestix::Element> {
         Some(create_element::<Window>(props))
+    }
+
+    fn create_web_view(&self, props: nestix_native_core::WebViewProps) -> Option<nestix::Element> {
+        Some(create_element::<WebView>(props))
     }
 
     fn create_file_picker(

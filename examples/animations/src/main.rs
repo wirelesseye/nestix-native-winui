@@ -91,7 +91,7 @@ fn AnimationApp() -> Element {
                         .on_close_requested = callback!(|| {
                             unmount_root().expect("root should be mounted");
                         }),
-                        .resizable = false,
+                        .resizable = false
                     ),
                 ) {
                     FlexView(.class = "root", .view(.flex_grow = 1.0)) {

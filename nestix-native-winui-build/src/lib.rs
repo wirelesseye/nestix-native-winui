@@ -8,6 +8,7 @@ const PACKAGES: &[(&str, &str)] = &[
     ("Microsoft.WindowsAppSDK", "1.8.260529003"),
     ("Microsoft.WindowsAppSDK.Runtime", "1.8.260529003"),
     ("Microsoft.WindowsAppSDK.WinUI", "1.8.260528001"),
+    ("Microsoft.Web.WebView2", "1.0.3179.45"),
     ("Microsoft.WindowsAppSDK.Foundation", "1.8.260527000"),
     ("Microsoft.WindowsAppSDK.Base", "1.8.251216001"),
     (
@@ -17,6 +18,7 @@ const PACKAGES: &[(&str, &str)] = &[
 ];
 
 const RUNTIME_PACKAGE: (&str, &str) = ("Microsoft.WindowsAppSDK.Runtime", "1.8.260529003");
+const WEBVIEW2_PACKAGE: (&str, &str) = ("Microsoft.Web.WebView2", "1.0.3179.45");
 
 /// Configures the final application executable for unpackaged, self-contained
 /// Windows App SDK deployment.
@@ -39,7 +41,27 @@ pub fn configure() {
     });
 
     stage_runtime(&packages, &output, arch);
+    stage_webview2_runtime(&packages, &output, arch);
     embed_manifest();
+}
+
+fn stage_webview2_runtime(packages: &Path, output: &Path, arch: &str) {
+    let package = packages.join(WEBVIEW2_PACKAGE.0).join(WEBVIEW2_PACKAGE.1);
+    let runtime = package.join("runtimes").join(format!("win-{arch}"));
+    let files = [
+        runtime.join("native").join("WebView2Loader.dll"),
+        runtime
+            .join("native_uap")
+            .join("Microsoft.Web.WebView2.Core.dll"),
+    ];
+    for file in files {
+        if !file.is_file() {
+            panic!("WebView2 runtime file was not found at {}", file.display());
+        }
+        println!("cargo:rerun-if-changed={}", file.display());
+        let name = file.file_name().expect("WebView2 runtime path has no name");
+        copy_file_if_changed(&file, output.join(name));
+    }
 }
 
 /// Locates the pinned Windows App SDK component packages, downloading them to

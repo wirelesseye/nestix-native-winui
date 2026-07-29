@@ -3,6 +3,7 @@ use std::{fs, path::Path};
 const WINDOWS_APP_SDK_WINUI_VERSION: &str = "1.8.260528001";
 const WINDOWS_APP_SDK_FOUNDATION_VERSION: &str = "1.8.260527000";
 const WINDOWS_APP_SDK_INTERACTIVE_EXPERIENCES_VERSION: &str = "1.8.260525001";
+const WEBVIEW2_VERSION: &str = "1.0.3179.45";
 
 fn main() {
     let packages_dir = nestix_native_winui_build::windows_app_sdk_package_root();
@@ -14,6 +15,11 @@ fn main() {
         .join(WINDOWS_APP_SDK_WINUI_VERSION)
         .join("metadata");
     let foundation_metadata_dir = foundation_dir.join("metadata");
+    let webview_metadata = packages_dir
+        .join("Microsoft.Web.WebView2")
+        .join(WEBVIEW2_VERSION)
+        .join("lib")
+        .join("Microsoft.Web.WebView2.Core.winmd");
     let ixp_metadata_dir = packages_dir
         .join("Microsoft.WindowsAppSDK.InteractiveExperiences")
         .join(WINDOWS_APP_SDK_INTERACTIVE_EXPERIENCES_VERSION)
@@ -24,6 +30,7 @@ fn main() {
     collect_winmds(&winui_metadata_dir, &mut metadata_files);
     collect_winmds(&foundation_metadata_dir, &mut metadata_files);
     collect_winmds(&ixp_metadata_dir, &mut metadata_files);
+    metadata_files.push(webview_metadata);
 
     if metadata_files.is_empty() {
         panic!(
@@ -109,6 +116,12 @@ fn main() {
         "Microsoft.UI.Xaml.Controls.Slider".to_string(),
         "Microsoft.UI.Xaml.Controls.ToggleMenuFlyoutItem".to_string(),
         "Microsoft.UI.Xaml.Controls.ToggleSwitch".to_string(),
+        "Microsoft.UI.Xaml.Controls.WebView2".to_string(),
+        "Microsoft.UI.Xaml.Controls.CoreWebView2InitializedEventArgs".to_string(),
+        "Microsoft.Web.WebView2.Core.CoreWebView2".to_string(),
+        "Microsoft.Web.WebView2.Core.CoreWebView2HostResourceAccessKind".to_string(),
+        "Microsoft.Web.WebView2.Core.CoreWebView2Settings".to_string(),
+        "Microsoft.Web.WebView2.Core.CoreWebView2WebMessageReceivedEventArgs".to_string(),
         "Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs".to_string(),
         "Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventHandler".to_string(),
         "Microsoft.UI.Xaml.Controls.Primitives.RangeBase".to_string(),
