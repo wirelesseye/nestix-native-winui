@@ -44,7 +44,7 @@ pub fn App() -> Element {
                         .height = 640,
                         .on_close_requested = callback!(|| {
                             unmount_root().expect("root should be mounted");
-                        })
+                        }),
                     ),
                 ) {
                     FlexView(
@@ -101,7 +101,11 @@ pub fn App() -> Element {
                             FlexView(.class = "dom_panel") {
                                 Text("DOM elements in DomSurface", .class = "heading")
                                 Text(computed!([name] || format!("Hello, {}", name.get())))
-                                Text(computed!([count] || format!("Shared count: {}", count.get())))
+                                Text(
+                                    computed!(
+                                        [count] || format!("Shared count: {}", count.get())
+                                    ),
+                                )
                                 Input(
                                     .value = name.clone(),
                                     .on_text_change = callback!(
@@ -132,11 +136,13 @@ pub fn App() -> Element {
                                     })],
                                 ) {
                                     Text(
-                                        computed!([count]
-                                            || format!(
-                                                "Custom element · count {} · select to increment",
-                                                count.get()
-                                            )),
+                                        computed!(
+                                            [count]
+                                                || format!(
+                                                    "Custom element · count {} · select to increment",
+                                                    count.get()
+                                                )
+                                        ),
                                     )
                                 }
                                 FlexView(

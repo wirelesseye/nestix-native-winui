@@ -69,7 +69,7 @@ fn ExampleApp() -> Element {
                         .height = 420,
                         .on_close_requested = callback!(|| {
                             unmount_root().expect("root should be mounted");
-                        })
+                        }),
                     ),
                 ) {
                     FlexView(.class = "app", .view(.flex_grow = 1.0)) {

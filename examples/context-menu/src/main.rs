@@ -117,7 +117,7 @@ fn ContextMenuExample() -> Element {
                     .height = 360,
                     .on_close_requested = callback!(|| {
                         unmount_root().expect("root should be mounted");
-                    })
+                    }),
                 ),
             ) {
                 FlexView(
