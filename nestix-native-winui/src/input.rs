@@ -7,7 +7,10 @@ use nestix_native_core::{
     style_length_with_auto, style_margin,
     utils::{inset_to_taffy, margin_to_taffy},
 };
-use taffy::{Size, Style, prelude::FromLength};
+use taffy::{
+    Size, Style,
+    prelude::{FromLength, TaffyAuto},
+};
 
 use crate::{WindowContext, contexts::ParentContext, xaml::TextBoxElement};
 
@@ -123,19 +126,14 @@ pub fn Input(props: &InputProps, element: &Element) {
                 WithAuto::Auto,
                 |style| style.height,
             );
-            let width = match width {
-                WithAuto::Auto => measured.0,
-                WithAuto::Value(length) => length.to_logical::<f32>(scale_factor).0,
-            };
-            let height = match height {
-                WithAuto::Auto => measured.1,
-                WithAuto::Value(length) => length.to_logical::<f32>(scale_factor).0,
-            };
+            let (width, min_width) = input_dimension(width, measured.0, scale_factor);
+            let (height, min_height) = input_dimension(height, measured.1, scale_factor);
 
             tree_context.update_style(node_id, |prev| Style {
-                size: Size {
-                    width: taffy::Dimension::from_length(width),
-                    height: taffy::Dimension::from_length(height),
+                size: Size { width, height },
+                min_size: Size {
+                    width: min_width,
+                    height: min_height,
                 },
                 ..prev
             });
@@ -215,4 +213,74 @@ pub fn Input(props: &InputProps, element: &Element) {
             }
         }
     );
+}
+
+fn input_dimension(
+    value: WithAuto<nestix_native_core::Length>,
+    measured: f32,
+    scale_factor: f64,
+) -> (taffy::Dimension, taffy::Dimension) {
+    match value {
+        WithAuto::Auto => (
+            taffy::Dimension::AUTO,
+            taffy::Dimension::from_length(measured),
+        ),
+        WithAuto::Value(value) => (
+            taffy::Dimension::from_length(value.to_logical::<f32>(scale_factor).0),
+            taffy::Dimension::AUTO,
+        ),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::input_dimension;
+    use nestix_native_core::WithAuto;
+    use taffy::{
+        AlignItems, AvailableSpace, FlexDirection, Size, Style, TaffyTree, prelude::FromLength,
+    };
+
+    #[test]
+    fn auto_input_width_stretches_past_its_intrinsic_width() {
+        let (width, min_width) = input_dimension(WithAuto::Auto, 300.0, 1.0);
+        let mut tree: TaffyTree<()> = TaffyTree::new();
+        let input = tree
+            .new_leaf(Style {
+                size: Size {
+                    width,
+                    height: taffy::Dimension::from_length(32.0),
+                },
+                min_size: Size {
+                    width: min_width,
+                    height: taffy::Dimension::from_length(32.0),
+                },
+                ..Default::default()
+            })
+            .unwrap();
+        let parent = tree
+            .new_with_children(
+                Style {
+                    flex_direction: FlexDirection::Column,
+                    align_items: Some(AlignItems::Stretch),
+                    size: Size {
+                        width: taffy::Dimension::from_length(600.0),
+                        height: taffy::Dimension::from_length(400.0),
+                    },
+                    ..Default::default()
+                },
+                &[input],
+            )
+            .unwrap();
+
+        tree.compute_layout(
+            parent,
+            Size {
+                width: AvailableSpace::Definite(600.0),
+                height: AvailableSpace::Definite(400.0),
+            },
+        )
+        .unwrap();
+
+        assert_eq!(tree.layout(input).unwrap().size.width, 600.0);
+    }
 }
