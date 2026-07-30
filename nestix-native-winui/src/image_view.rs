@@ -16,6 +16,7 @@ use crate::{WindowContext, contexts::ParentContext, xaml::ImageElement};
 
 #[component]
 pub fn ImageView(props: &ImageViewProps, element: &Element) {
+    require_visual_mount!(element, ImageView);
     const DEFAULT_CLASSES: [&str; 2] = ["__ImageView", "__winui_ImageView"];
     let window_context = element.context::<WindowContext>().unwrap();
     let tree_context = element.context::<TreeContext>().unwrap();

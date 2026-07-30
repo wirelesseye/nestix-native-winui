@@ -174,36 +174,41 @@ pub fn Window(props: &WindowProps, element: &Element) -> Element {
                     .default_classes = DEFAULT_CLASSES,
                     .effective_style = target_size,
                 ) {
-                    ContextProvider<ParentContext>(
-                        ParentContext {
-                            add_child: Some(callback!([window, tree_context, content, presented_size, scale_factor] |child: XamlElement,
-                            child_node: Option<taffy::NodeId> | {
-                                let style = presented_size.get().unwrap_or_default();
-                                let width = logical_length(style.width, 800.0, scale_factor.get());
-                                let height =
-                                    logical_length(style.height, 600.0, scale_factor.get());
-                                let _ = window.append_child(child.clone());
-                                content.replace(Some((child, child_node)));
-                                tree_context.set_root_node(child_node);
-                                sync_window_content(&tree_context, &content, width, height);
-                            })),
-                            insert_child: None,
-                            remove_child: Some(callback!([window, tree_context, content] |child: &XamlElement,
-                            _: Option<taffy::NodeId> | {
-                                let _ = window.remove_child(child);
-                                if content
-                                    .borrow()
-                                    .as_ref()
-                                    .is_some_and(|(current, _)| current == child)
-                                {
-                                    content.borrow_mut().take();
-                                }
-                                tree_context.set_root_node(None);
-                            })),
-                            parent_node: None
-                        },
+                    ContextProvider<nestix_native_core::NativeVisualMount>(
+                        nestix_native_core::NativeVisualMount::allowed(crate::WINUI_BACKEND_ID),
                     ) {
-                        $(props.children.clone().map(|element| Layout::from(element.clone())))
+                        ContextProvider<ParentContext>(
+                            ParentContext {
+                                add_child: Some(callback!([window, tree_context, content, presented_size, scale_factor] |child: XamlElement,
+                                child_node: Option<taffy::NodeId> | {
+                                    let style = presented_size.get().unwrap_or_default();
+                                    let width =
+                                        logical_length(style.width, 800.0, scale_factor.get());
+                                    let height =
+                                        logical_length(style.height, 600.0, scale_factor.get());
+                                    let _ = window.append_child(child.clone());
+                                    content.replace(Some((child, child_node)));
+                                    tree_context.set_root_node(child_node);
+                                    sync_window_content(&tree_context, &content, width, height);
+                                })),
+                                insert_child: None,
+                                remove_child: Some(callback!([window, tree_context, content] |child: &XamlElement,
+                                _: Option<taffy::NodeId> | {
+                                    let _ = window.remove_child(child);
+                                    if content
+                                        .borrow()
+                                        .as_ref()
+                                        .is_some_and(|(current, _)| current == child)
+                                    {
+                                        content.borrow_mut().take();
+                                    }
+                                    tree_context.set_root_node(None);
+                                })),
+                                parent_node: None
+                            },
+                        ) {
+                            $(props.children.clone().map(|element| Layout::from(element.clone())))
+                        }
                     }
                 }
             }

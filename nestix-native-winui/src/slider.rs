@@ -5,6 +5,7 @@ use crate::{native_control, xaml::SliderElement};
 
 #[component]
 pub fn Slider(props: &SliderProps, element: &Element) {
+    require_visual_mount!(element, Slider);
     const DEFAULT_CLASSES: [&str; 2] = ["__Slider", "__winui_Slider"];
     let style = matched_style(
         element.context::<StyleContext>(),

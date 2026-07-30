@@ -39,6 +39,7 @@ fn apply_canvas_layout(
 
 #[component]
 pub fn FlexView(props: &FlexViewProps, element: &Element) -> Element {
+    require_visual_mount!(element, FlexView, output);
     const DEFAULT_CLASSES: [&str; 2] = ["__FlexView", "__winui_FlexView"];
 
     let window_context = element.context::<WindowContext>().unwrap();

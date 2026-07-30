@@ -5,6 +5,7 @@ use crate::{native_control, xaml::SwitchElement};
 
 #[component]
 pub fn Switch(props: &SwitchProps, element: &Element) {
+    require_visual_mount!(element, Switch);
     const DEFAULT_CLASSES: [&str; 2] = ["__Switch", "__winui_Switch"];
     let style = matched_style(
         element.context::<StyleContext>(),

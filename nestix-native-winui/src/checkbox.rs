@@ -5,6 +5,7 @@ use crate::{native_control, xaml::CheckBoxElement};
 
 #[component]
 pub fn Checkbox(props: &CheckboxProps, element: &Element) {
+    require_visual_mount!(element, Checkbox);
     const DEFAULT_CLASSES: [&str; 2] = ["__Checkbox", "__winui_Checkbox"];
     let style = matched_style(
         element.context::<StyleContext>(),

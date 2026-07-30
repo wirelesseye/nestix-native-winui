@@ -16,6 +16,7 @@ use crate::{WindowContext, contexts::ParentContext, xaml::TextBoxElement};
 
 #[component]
 pub fn Input(props: &InputProps, element: &Element) {
+    require_visual_mount!(element, Input);
     const DEFAULT_CLASSES: [&str; 2] = ["__Input", "__winui_Input"];
 
     let window_context = element.context::<WindowContext>().unwrap();

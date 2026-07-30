@@ -13,6 +13,7 @@ use crate::{WindowContext, contexts::ParentContext, xaml::ButtonElement};
 
 #[component]
 pub fn Button(props: &ButtonProps, element: &Element) {
+    require_visual_mount!(element, Button);
     const DEFAULT_CLASSES: [&str; 2] = ["__Button", "__winui_Button"];
 
     let window_context = element.context::<WindowContext>().unwrap();

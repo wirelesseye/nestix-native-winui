@@ -6,7 +6,7 @@ use std::{
     sync::atomic::{AtomicU64, Ordering},
 };
 
-use nestix::{Element, callback, closure, component, components::Fragment, layout, scoped_effect};
+use nestix::{Element, callback, closure, component, scoped_effect};
 use nestix_native_core::{
     JavaScriptEvaluator, StyleContext, WebViewBridge, WebViewBridgeScriptContext,
     WebViewDevToolsError, WebViewPresenter, WebViewProps, WebViewRegistration, WebViewSource,
@@ -63,7 +63,8 @@ struct WebViewState {
 
 /// Displays web content in the WinUI WebView2 XAML control.
 #[component]
-pub fn WebView(props: &WebViewProps, element: &Element) -> Element {
+pub fn WebView(props: &WebViewProps, element: &Element) {
+    require_visual_mount!(element, WebView);
     const DEFAULT_CLASSES: [&str; 2] = ["__WebView", "__winui_WebView"];
 
     let matched = matched_style(
@@ -221,12 +222,6 @@ pub fn WebView(props: &WebViewProps, element: &Element) -> Element {
             realized_registration.borrow_mut().take();
         }
     ));
-
-    layout! {
-        Fragment {
-            $(props.children.get())
-        }
-    }
 }
 
 fn register_state(state: &Rc<RefCell<WebViewState>>) -> u64 {

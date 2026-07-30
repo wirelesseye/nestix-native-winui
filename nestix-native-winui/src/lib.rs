@@ -1,3 +1,26 @@
+pub const WINUI_BACKEND_ID: &str = "nestix-native-winui";
+
+macro_rules! require_visual_mount {
+    ($element:expr, $component:ident) => {
+        if !nestix_native_core::native_visual_mount_allowed(
+            $element,
+            crate::WINUI_BACKEND_ID,
+            stringify!($component),
+        ) {
+            return;
+        }
+    };
+    ($element:expr, $component:ident, output) => {
+        if !nestix_native_core::native_visual_mount_allowed(
+            $element,
+            crate::WINUI_BACKEND_ID,
+            stringify!($component),
+        ) {
+            return nestix_native_core::empty_visual_output();
+        }
+    };
+}
+
 mod app_shim;
 pub mod button;
 pub mod checkbox;
@@ -63,7 +86,7 @@ pub struct WinUiBackend;
 
 impl Backend for WinUiBackend {
     fn backend_id(&self) -> &'static str {
-        "nestix-native-winui"
+        WINUI_BACKEND_ID
     }
 
     fn create_root(&self, props: nestix_native_core::RootProps) -> Option<nestix::Element> {

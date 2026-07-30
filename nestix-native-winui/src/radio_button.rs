@@ -5,6 +5,7 @@ use crate::{native_control, xaml::RadioButtonElement};
 
 #[component]
 pub fn RadioButton(props: &RadioButtonProps, element: &Element) {
+    require_visual_mount!(element, RadioButton);
     const DEFAULT_CLASSES: [&str; 2] = ["__RadioButton", "__winui_RadioButton"];
     let style = matched_style(
         element.context::<StyleContext>(),

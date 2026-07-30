@@ -22,6 +22,7 @@ struct SelectContext {
 
 #[component]
 pub fn Select(props: &SelectProps, element: &Element) -> Element {
+    require_visual_mount!(element, Select, output);
     const DEFAULT_CLASSES: [&str; 2] = ["__Select", "__winui_Select"];
     let style = matched_style(
         element.context::<StyleContext>(),
@@ -77,6 +78,7 @@ pub fn Select(props: &SelectProps, element: &Element) -> Element {
 
 #[component]
 pub fn SelectOption(props: &SelectOptionProps, element: &Element) {
+    require_visual_mount!(element, SelectOption);
     let context = element
         .context::<SelectContext>()
         .expect("SelectOption must be a child of Select");
