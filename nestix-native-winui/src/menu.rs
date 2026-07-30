@@ -564,6 +564,7 @@ pub fn Menu(props: &MenuProps, element: &Element) -> Element {
 
 #[component]
 pub fn MenuBar(props: &MenuBarProps, element: &Element) -> Element {
+    require_visual_mount!(element, MenuBar, output);
     let menu = create_state(None::<Rc<MenuData>>);
     let context = MenuBarContext { menu: menu.clone() };
 
