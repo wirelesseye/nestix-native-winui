@@ -182,44 +182,8 @@ impl Backend for WinUiBackend {
         Some(create_element::<FilePicker>(props))
     }
 
-    fn create_menu(&self, props: nestix_native_core::MenuProps) -> Option<nestix::Element> {
-        Some(create_element::<Menu>(props))
-    }
-
     fn create_menu_bar(&self, props: nestix_native_core::MenuBarProps) -> Option<nestix::Element> {
         Some(create_element::<MenuBar>(props))
-    }
-
-    fn create_submenu(&self, props: nestix_native_core::SubmenuProps) -> Option<nestix::Element> {
-        Some(create_element::<Submenu>(props))
-    }
-
-    fn create_menu_item(
-        &self,
-        props: nestix_native_core::MenuItemProps,
-    ) -> Option<nestix::Element> {
-        Some(create_element::<MenuItem>(props))
-    }
-
-    fn create_check_menu_item(
-        &self,
-        props: nestix_native_core::CheckMenuItemProps,
-    ) -> Option<nestix::Element> {
-        Some(create_element::<CheckMenuItem>(props))
-    }
-
-    fn create_radio_menu_item(
-        &self,
-        props: nestix_native_core::RadioMenuItemProps,
-    ) -> Option<nestix::Element> {
-        Some(create_element::<RadioMenuItem>(props))
-    }
-
-    fn create_menu_separator(
-        &self,
-        props: nestix_native_core::MenuSeparatorProps,
-    ) -> Option<nestix::Element> {
-        Some(create_element::<MenuSeparator>(props))
     }
 
     fn create_context_menu(
