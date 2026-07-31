@@ -24,9 +24,10 @@ use crate::{
             Controls::Primitives::RangeBase,
             Controls::{
                 Button, Canvas, CheckBox, ComboBox, ComboBoxItem, Control, Grid, Image,
-                ItemsControl, MenuBar, RadioButton, RowDefinition, ScrollView,
-                ScrollingContentOrientation, ScrollingScrollBarVisibility, SelectorBar,
-                SelectorBarItem, Slider, TextBlock, TextBox, ToggleSwitch,
+                ItemsControl, MenuBar, NavigationView, NavigationViewPaneDisplayMode, RadioButton,
+                RowDefinition, ScrollView, ScrollingContentOrientation,
+                ScrollingScrollBarVisibility, SelectorBar, SelectorBarItem, Slider, TextBlock,
+                TextBox, ToggleSwitch,
             },
             FrameworkElement, GridLength, GridUnitType, HorizontalAlignment,
             Media::{FontFamily, Imaging::BitmapImage, Stretch},
@@ -94,6 +95,7 @@ enum XamlKind {
     TextBox(TextBoxState),
     Image(ImageState),
     MenuBar(MenuBarState),
+    Sidebar(SidebarState),
     TabView(TabViewState),
     TabViewItem(TabViewItemState),
 }
@@ -116,6 +118,7 @@ struct WindowState {
     animation: Rc<AnimationRuntime>,
     tree_context: Rc<TreeContext>,
     animation_timer: Option<Rc<AnimationTimerState>>,
+    sidebar: Option<XamlElement>,
 }
 
 impl std::fmt::Debug for WindowState {
@@ -284,6 +287,39 @@ struct MenuBarState {
     realized: Option<MenuBar>,
 }
 
+fn stretch_to_parent(element: &UIElement) -> Result<()> {
+    let framework_element = element.cast::<FrameworkElement>()?;
+    framework_element.SetWidth(f64::NAN)?;
+    framework_element.SetHeight(f64::NAN)?;
+    framework_element.SetHorizontalAlignment(HorizontalAlignment::Stretch)?;
+    framework_element.SetVerticalAlignment(VerticalAlignment::Stretch)?;
+    Ok(())
+}
+
+#[derive(Clone)]
+struct SidebarState {
+    width: Option<f64>,
+    min_width: Option<f64>,
+    resizable: bool,
+    open: Option<bool>,
+    on_open_change: Option<Shared<dyn Fn(bool)>>,
+    content_resized: Rc<RefCell<Option<Shared<dyn Fn(f32, f32)>>>>,
+    realized: Option<RealizedSidebar>,
+}
+
+impl std::fmt::Debug for SidebarState {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("SidebarState")
+            .field("width", &self.width)
+            .field("min_width", &self.min_width)
+            .field("resizable", &self.resizable)
+            .field("open", &self.open)
+            .field("realized", &self.realized)
+            .finish_non_exhaustive()
+    }
+}
+
 impl std::fmt::Debug for MenuBarState {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter
@@ -343,6 +379,44 @@ pub(crate) struct RealizedTabView {
 pub(crate) struct RealizedTabViewItem {
     selector_item: SelectorBarItem,
     content: Grid,
+}
+
+#[derive(Clone)]
+pub(crate) struct RealizedSidebar {
+    control: NavigationView,
+    pane: Canvas,
+    content: Rc<RefCell<Option<UIElement>>>,
+    pane_opened_handler: Rc<RefCell<Option<SidebarOpenHandlerState>>>,
+    pane_closed_handler: Rc<RefCell<Option<SidebarOpenHandlerState>>>,
+    pane_resize_handler: Rc<RefCell<Option<TabContentResizeHandlerState>>>,
+    navigation_resize_handler: Rc<RefCell<Option<SidebarHostResizeHandlerState>>>,
+}
+
+impl std::fmt::Debug for RealizedSidebar {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("RealizedSidebar")
+            .field("control", &self.control)
+            .field("pane", &self.pane)
+            .finish_non_exhaustive()
+    }
+}
+
+pub(crate) struct SidebarOpenHandlerState {
+    _callback: Option<RegisteredBoolCallback>,
+    _revoker: EventRevoker,
+}
+
+pub(crate) struct SidebarHostResizeHandlerState {
+    _revoker: EventRevoker,
+}
+
+impl std::fmt::Debug for SidebarOpenHandlerState {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("SidebarOpenHandlerState")
+            .finish_non_exhaustive()
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -508,6 +582,7 @@ typed_element!(TextBlockElement);
 typed_element!(TextBoxElement);
 typed_element!(ImageElement);
 typed_element!(MenuBarElement);
+typed_element!(SidebarElement);
 typed_element!(TabViewElement);
 typed_element!(TabViewItemElement);
 
@@ -556,6 +631,11 @@ impl WindowElement {
     }
     pub(crate) fn hwnd(&self) -> Result<windows::Win32::Foundation::HWND> {
         self.0.window_hwnd()
+    }
+
+    pub(crate) fn set_sidebar(&self, sidebar: Option<SidebarElement>) -> Result<()> {
+        self.0
+            .set_window_sidebar(sidebar.map(|sidebar| sidebar.erased()))
     }
 
     pub(crate) fn window_id(&self) -> Result<crate::bindings::Microsoft::UI::WindowId> {
@@ -798,6 +878,39 @@ impl TabViewElement {
     }
 }
 
+impl SidebarElement {
+    pub(crate) fn new(
+        width: Option<f64>,
+        min_width: Option<f64>,
+        resizable: bool,
+        open: Option<bool>,
+        on_open_change: Option<Shared<dyn Fn(bool)>>,
+    ) -> Result<Self> {
+        XamlElement::sidebar(width, min_width, resizable, open, on_open_change).map(Self)
+    }
+
+    pub(crate) fn set_open(&self, open: Option<bool>) -> Result<()> {
+        self.0.set_sidebar_open(open)
+    }
+
+    pub(crate) fn set_sizing(
+        &self,
+        width: Option<f64>,
+        min_width: Option<f64>,
+        resizable: bool,
+    ) -> Result<()> {
+        self.0.set_sidebar_sizing(width, min_width, resizable)
+    }
+
+    pub(crate) fn set_on_open_change(&self, handler: Option<Shared<dyn Fn(bool)>>) -> Result<()> {
+        self.0.set_sidebar_on_open_change(handler)
+    }
+
+    pub(crate) fn set_content_resized(&self, handler: Shared<dyn Fn(f32, f32)>) -> Result<()> {
+        self.0.set_sidebar_content_resized(handler)
+    }
+}
+
 impl TabViewItemElement {
     pub(crate) fn new(id: String, title: String) -> Result<Self> {
         XamlElement::tab_view_item(id, title).map(Self)
@@ -837,6 +950,7 @@ impl XamlElement {
             animation,
             tree_context,
             animation_timer: None,
+            sidebar: None,
         })))
     }
 
@@ -975,6 +1089,24 @@ impl XamlElement {
         })))
     }
 
+    fn sidebar(
+        width: Option<f64>,
+        min_width: Option<f64>,
+        resizable: bool,
+        open: Option<bool>,
+        on_open_change: Option<Shared<dyn Fn(bool)>>,
+    ) -> Result<Self> {
+        Ok(Self::new(XamlKind::Sidebar(SidebarState {
+            width,
+            min_width,
+            resizable,
+            open,
+            on_open_change,
+            content_resized: Rc::new(RefCell::new(None)),
+            realized: None,
+        })))
+    }
+
     fn tab_view_item(id: String, title: String) -> Result<Self> {
         Ok(Self::new(XamlKind::TabViewItem(TabViewItemState {
             id,
@@ -1049,7 +1181,12 @@ impl XamlElement {
         match &*self.0.kind.borrow() {
             XamlKind::Window(element) => {
                 if let Some(window) = &element.realized {
-                    window.SetContent(None)?;
+                    if let Some(sidebar) = &element.sidebar {
+                        sidebar.set_sidebar_main_content(None)?;
+                        window.SetContent(&sidebar.as_ui_element()?)?;
+                    } else {
+                        window.SetContent(None)?;
+                    }
                 }
             }
             XamlKind::Canvas(element) => {
@@ -1094,6 +1231,16 @@ impl XamlElement {
                 if let Some(realized) = &element.realized {
                     let child = child.as_ui_element()?;
                     let children = realized.content.Children()?;
+                    let mut index = 0;
+                    if children.IndexOf(&child, &mut index)? {
+                        children.RemoveAt(index)?;
+                    }
+                }
+            }
+            XamlKind::Sidebar(element) => {
+                if let Some(realized) = &element.realized {
+                    let child = child.as_ui_element()?;
+                    let children = realized.pane.Children()?;
                     let mut index = 0;
                     if children.IndexOf(&child, &mut index)? {
                         children.RemoveAt(index)?;
@@ -1172,6 +1319,7 @@ impl XamlElement {
                 }
                 XamlKind::Canvas(_)
                 | XamlKind::ScrollView(_)
+                | XamlKind::Sidebar(_)
                 | XamlKind::TabView(_)
                 | XamlKind::MenuBar(_)
                 | XamlKind::Select(_)
@@ -1494,6 +1642,42 @@ impl XamlElement {
         }
     }
 
+    fn set_window_sidebar(&self, sidebar: Option<XamlElement>) -> Result<()> {
+        let (window, previous) = {
+            let mut kind = self.0.kind.borrow_mut();
+            let XamlKind::Window(element) = &mut *kind else {
+                return Err(Error::new(E_NOTIMPL, "element is not a window"));
+            };
+            let previous = std::mem::replace(&mut element.sidebar, sidebar.clone());
+            (element.realized.clone(), previous)
+        };
+
+        if let Some(previous) = previous
+            && sidebar.as_ref() != Some(&previous)
+        {
+            previous.set_sidebar_main_content(None)?;
+        }
+
+        let Some(window) = window else {
+            return Ok(());
+        };
+        let content = self.0.children.borrow().first().cloned();
+        if let Some(sidebar) = sidebar {
+            sidebar.realize()?;
+            sidebar.set_sidebar_main_content(content.as_ref())?;
+            let control = sidebar.as_ui_element()?;
+            stretch_to_parent(&control)?;
+            window.SetContent(&control)?;
+        } else if let Some(content) = content {
+            let content = content.as_ui_element()?;
+            stretch_to_parent(&content)?;
+            window.SetContent(&content)?;
+        } else {
+            window.SetContent(None)?;
+        }
+        Ok(())
+    }
+
     fn set_titlebar_mode(&self, mode: TitlebarMode) -> Result<()> {
         match &mut *self.0.kind.borrow_mut() {
             XamlKind::Window(element) => {
@@ -1607,6 +1791,82 @@ impl XamlElement {
         if let Some(realized) = element.realized.clone() {
             element.attach_selection_handler(&realized)?;
         }
+        Ok(())
+    }
+
+    fn set_sidebar_open(&self, open: Option<bool>) -> Result<()> {
+        let mut kind = self.0.kind.borrow_mut();
+        let XamlKind::Sidebar(element) = &mut *kind else {
+            return Ok(());
+        };
+        element.open = open;
+        if let (Some(open), Some(realized)) = (open, &element.realized)
+            && realized.control.IsPaneOpen()? != open
+        {
+            realized.control.SetIsPaneOpen(open)?;
+        }
+        Ok(())
+    }
+
+    fn set_sidebar_sizing(
+        &self,
+        width: Option<f64>,
+        min_width: Option<f64>,
+        resizable: bool,
+    ) -> Result<()> {
+        let mut kind = self.0.kind.borrow_mut();
+        let XamlKind::Sidebar(element) = &mut *kind else {
+            return Ok(());
+        };
+        element.width = width;
+        element.min_width = min_width;
+        element.resizable = resizable;
+        if let Some(realized) = &element.realized {
+            apply_sidebar_sizing(&realized.control, width, min_width)?;
+        }
+        Ok(())
+    }
+
+    fn set_sidebar_on_open_change(&self, handler: Option<Shared<dyn Fn(bool)>>) -> Result<()> {
+        let mut kind = self.0.kind.borrow_mut();
+        let XamlKind::Sidebar(element) = &mut *kind else {
+            return Ok(());
+        };
+        element.on_open_change = handler;
+        if let Some(realized) = element.realized.clone() {
+            element.attach_open_handlers(&realized)?;
+        }
+        Ok(())
+    }
+
+    fn set_sidebar_content_resized(&self, handler: Shared<dyn Fn(f32, f32)>) -> Result<()> {
+        let mut kind = self.0.kind.borrow_mut();
+        let XamlKind::Sidebar(element) = &mut *kind else {
+            return Ok(());
+        };
+        element.content_resized.replace(Some(handler));
+        if let Some(realized) = element.realized.clone() {
+            element.attach_content_resize_handler(&realized)?;
+        }
+        Ok(())
+    }
+
+    fn set_sidebar_main_content(&self, content: Option<&XamlElement>) -> Result<()> {
+        let kind = self.0.kind.borrow();
+        let XamlKind::Sidebar(element) = &*kind else {
+            return Ok(());
+        };
+        let Some(realized) = &element.realized else {
+            return Ok(());
+        };
+        let content = content.map(XamlElement::as_ui_element).transpose()?;
+        if let Some(content) = &content {
+            stretch_to_parent(content)?;
+            realized.control.SetContent(content)?;
+        } else {
+            realized.control.SetContent(None)?;
+        }
+        realized.content.replace(content);
         Ok(())
     }
 
@@ -1959,6 +2219,7 @@ impl XamlElement {
             XamlKind::TextBox(element) => element.realize()?,
             XamlKind::Image(element) => element.realize()?,
             XamlKind::MenuBar(element) => element.realize()?,
+            XamlKind::Sidebar(element) => element.realize()?,
             XamlKind::TabView(element) => element.realize()?,
             XamlKind::TabViewItem(element) => element.realize()?,
         }
@@ -2013,6 +2274,7 @@ impl XamlElement {
             XamlKind::TextBox(element) => element.realized.is_some(),
             XamlKind::Image(element) => element.realized.is_some(),
             XamlKind::MenuBar(element) => element.realized.is_some(),
+            XamlKind::Sidebar(element) => element.realized.is_some(),
             XamlKind::TabView(element) => element.realized.is_some(),
             XamlKind::TabViewItem(element) => element.realized.is_some(),
         }
@@ -2024,12 +2286,16 @@ impl XamlElement {
         match &mut *self.0.kind.borrow_mut() {
             XamlKind::Window(element) => {
                 if let Some(window) = element.realized.clone() {
-                    let framework_element = child.cast::<FrameworkElement>()?;
-                    framework_element.SetWidth(f64::NAN)?;
-                    framework_element.SetHeight(f64::NAN)?;
-                    framework_element.SetHorizontalAlignment(HorizontalAlignment::Stretch)?;
-                    framework_element.SetVerticalAlignment(VerticalAlignment::Stretch)?;
-                    window.SetContent(&child)?;
+                    stretch_to_parent(&child)?;
+                    if let Some(sidebar) = &element.sidebar {
+                        sidebar.realize()?;
+                        sidebar.set_sidebar_main_content(Some(child_element))?;
+                        let sidebar = sidebar.as_ui_element()?;
+                        stretch_to_parent(&sidebar)?;
+                        window.SetContent(&sidebar)?;
+                    } else {
+                        window.SetContent(&child)?;
+                    }
                     element.attach_scale_factor_handler(&window)?;
                     element.attach_resize_handler(&window)?;
                 }
@@ -2090,6 +2356,16 @@ impl XamlElement {
                     children.InsertAt(index.min(children.Size()? as usize) as u32, &child)?;
                 }
             }
+            XamlKind::Sidebar(element) => {
+                if let Some(realized) = &element.realized {
+                    let children = realized.pane.Children()?;
+                    let mut old_index = 0;
+                    if children.IndexOf(&child, &mut old_index)? {
+                        children.RemoveAt(old_index)?;
+                    }
+                    children.InsertAt(index.min(children.Size()? as usize) as u32, &child)?;
+                }
+            }
             XamlKind::Button(_)
             | XamlKind::CheckBox(_)
             | XamlKind::RadioButton(_)
@@ -2120,6 +2396,7 @@ impl XamlElement {
             XamlKind::TextBox(element) => element.realized.as_ref().unwrap().cast(),
             XamlKind::Image(element) => element.realized.as_ref().unwrap().cast(),
             XamlKind::MenuBar(element) => element.realized.as_ref().unwrap().cast(),
+            XamlKind::Sidebar(element) => element.realized.as_ref().unwrap().control.cast(),
             XamlKind::TabView(element) => element.realized.as_ref().unwrap().control.cast(),
             XamlKind::TabViewItem(element) => element.realized.as_ref().unwrap().content.cast(),
         }
@@ -2951,6 +3228,163 @@ pub(crate) struct TabContentResizeHandlerState {
     _revoker: EventRevoker,
 }
 
+impl SidebarState {
+    fn realize(&mut self) -> Result<()> {
+        let control = NavigationView::new()?;
+        let pane = Canvas::new()?;
+        stretch_to_parent(&pane.cast()?)?;
+        control.SetPaneDisplayMode(NavigationViewPaneDisplayMode::Left)?;
+        control.SetIsSettingsVisible(false)?;
+        control.SetAlwaysShowHeader(false)?;
+        control.SetIsTitleBarAutoPaddingEnabled(false)?;
+        control.SetPaneCustomContent(&pane)?;
+        apply_sidebar_sizing(&control, self.width, self.min_width)?;
+        if let Some(open) = self.open {
+            control.SetIsPaneOpen(open)?;
+        }
+
+        let realized = RealizedSidebar {
+            control,
+            pane,
+            content: Rc::new(RefCell::new(None)),
+            pane_opened_handler: Rc::new(RefCell::new(None)),
+            pane_closed_handler: Rc::new(RefCell::new(None)),
+            pane_resize_handler: Rc::new(RefCell::new(None)),
+            navigation_resize_handler: Rc::new(RefCell::new(None)),
+        };
+        self.attach_navigation_resize_handler(&realized)?;
+        self.attach_open_handlers(&realized)?;
+        self.attach_content_resize_handler(&realized)?;
+        self.realized = Some(realized);
+        Ok(())
+    }
+
+    fn attach_open_handlers(&self, realized: &RealizedSidebar) -> Result<()> {
+        realized.pane_opened_handler.take();
+        realized.pane_closed_handler.take();
+
+        let requested = self.open;
+        let callback = self
+            .on_open_change
+            .clone()
+            .map(RegisteredBoolCallback::register);
+        let callback_id = callback.as_ref().map(RegisteredBoolCallback::id);
+        let revoker = realized.control.PaneOpened(move |sender, _| {
+            if requested != Some(true)
+                && let Some(callback_id) = callback_id
+            {
+                RegisteredBoolCallback::invoke(callback_id, true);
+            }
+            if requested == Some(false)
+                && let Some(sender) = &*sender
+            {
+                let _ = sender.SetIsPaneOpen(false);
+            }
+        })?;
+        realized
+            .pane_opened_handler
+            .replace(Some(SidebarOpenHandlerState {
+                _callback: callback,
+                _revoker: revoker,
+            }));
+
+        let callback = self
+            .on_open_change
+            .clone()
+            .map(RegisteredBoolCallback::register);
+        let callback_id = callback.as_ref().map(RegisteredBoolCallback::id);
+        let revoker = realized.control.PaneClosed(move |sender, _| {
+            if requested != Some(false)
+                && let Some(callback_id) = callback_id
+            {
+                RegisteredBoolCallback::invoke(callback_id, false);
+            }
+            if requested == Some(true)
+                && let Some(sender) = &*sender
+            {
+                let _ = sender.SetIsPaneOpen(true);
+            }
+        })?;
+        realized
+            .pane_closed_handler
+            .replace(Some(SidebarOpenHandlerState {
+                _callback: callback,
+                _revoker: revoker,
+            }));
+        Ok(())
+    }
+
+    fn attach_navigation_resize_handler(&self, realized: &RealizedSidebar) -> Result<()> {
+        realized.navigation_resize_handler.take();
+        let pane = realized.pane.clone();
+        let revoker = realized.control.SizeChanged(move |_, args| {
+            if let Some(args) = &*args
+                && let Ok(size) = args.NewSize()
+            {
+                // Canvas deliberately does not include absolutely positioned children in its
+                // desired size. PaneCustomContent therefore gives it a zero-height slot unless
+                // the host supplies a concrete extent. Painting may escape that slot, but hit
+                // testing cannot, which leaves visible controls unable to receive input.
+                let _ = pane.SetHeight(size.Height.into());
+            }
+        })?;
+        realized
+            .navigation_resize_handler
+            .replace(Some(SidebarHostResizeHandlerState { _revoker: revoker }));
+        Ok(())
+    }
+
+    fn attach_content_resize_handler(&self, realized: &RealizedSidebar) -> Result<()> {
+        realized.pane_resize_handler.take();
+        let Some(callback) = self.content_resized.borrow().clone() else {
+            return Ok(());
+        };
+        let callback = RegisteredContentSizeCallback::register(callback);
+        let callback_id = callback.id();
+        let revoker = realized.pane.SizeChanged(move |_, args| {
+            if let Some(args) = &*args
+                && let Ok(size) = args.NewSize()
+            {
+                RegisteredContentSizeCallback::invoke(callback_id, size.Width, size.Height);
+            }
+        })?;
+        realized
+            .pane_resize_handler
+            .replace(Some(TabContentResizeHandlerState {
+                _callback: callback,
+                _revoker: revoker,
+            }));
+        Ok(())
+    }
+}
+
+fn apply_sidebar_sizing(
+    control: &NavigationView,
+    width: Option<f64>,
+    min_width: Option<f64>,
+) -> Result<()> {
+    if let Some(width) = clamped_sidebar_width(width, min_width) {
+        control.SetOpenPaneLength(width)?;
+    }
+    Ok(())
+}
+
+fn validated_sidebar_width(name: &str, value: Option<f64>) -> Option<f64> {
+    value.map(|value| {
+        assert!(
+            value.is_finite() && value >= 0.0,
+            "{name} must be a finite, non-negative number"
+        );
+        value
+    })
+}
+
+fn clamped_sidebar_width(width: Option<f64>, min_width: Option<f64>) -> Option<f64> {
+    let width = validated_sidebar_width("Sidebar width", width);
+    let min_width = validated_sidebar_width("Sidebar min_width", min_width);
+    width.map(|width| width.max(min_width.unwrap_or(0.0)))
+}
+
 impl TabViewState {
     fn realize(&mut self) -> Result<()> {
         let control = Grid::new()?;
@@ -3068,7 +3502,7 @@ fn set_canvas_background(canvas: &Canvas, color: Option<nestix_native_core::Colo
 
 #[cfg(test)]
 mod tests {
-    use super::{CanvasElement, SelectOptionData, XamlElement, XamlKind};
+    use super::{CanvasElement, SelectOptionData, XamlElement, XamlKind, clamped_sidebar_width};
     use nestix::Shared;
     use nestix_native_core::{AnimationRuntime, TitlebarMode, TreeContext};
     use std::rc::Rc;
@@ -3077,6 +3511,19 @@ mod tests {
     fn typed_element_erases_without_changing_identity() {
         let canvas = CanvasElement::new().unwrap();
         assert_eq!(canvas.erased(), canvas.erased());
+    }
+
+    #[test]
+    fn requested_sidebar_width_is_clamped_to_the_minimum() {
+        assert_eq!(clamped_sidebar_width(Some(180.0), Some(220.0)), Some(220.0));
+        assert_eq!(clamped_sidebar_width(Some(280.0), Some(220.0)), Some(280.0));
+        assert_eq!(clamped_sidebar_width(None, Some(220.0)), None);
+    }
+
+    #[test]
+    #[should_panic(expected = "Sidebar min_width must be a finite, non-negative number")]
+    fn invalid_sidebar_min_width_panics() {
+        clamped_sidebar_width(None, Some(f64::NAN));
     }
 
     #[test]

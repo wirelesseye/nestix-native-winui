@@ -36,6 +36,7 @@ pub mod radio_button;
 pub mod root;
 pub mod scroll_view;
 pub mod select;
+pub mod sidebar;
 pub mod slider;
 pub mod switch;
 pub mod tab_view;
@@ -69,6 +70,7 @@ pub use radio_button::*;
 pub use root::*;
 pub use scroll_view::*;
 pub use select::*;
+pub use sidebar::*;
 pub use slider::*;
 pub use switch::*;
 pub use tab_view::*;
@@ -150,6 +152,10 @@ impl Backend for WinUiBackend {
         props: nestix_native_core::ScrollViewProps,
     ) -> Option<nestix::Element> {
         Some(create_element::<ScrollView>(props))
+    }
+
+    fn create_sidebar(&self, props: nestix_native_core::SidebarProps) -> Option<nestix::Element> {
+        Some(create_element::<Sidebar>(props))
     }
 
     fn create_text(&self, props: nestix_native_core::TextProps) -> Option<nestix::Element> {

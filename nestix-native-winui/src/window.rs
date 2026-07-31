@@ -22,6 +22,7 @@ pub struct WindowContext {
     pub scale_factor: nestix::Readonly<f64>,
     pub animation: Rc<AnimationRuntime>,
     pub(crate) window: WindowElement,
+    pub(crate) sidebar_owner: Rc<RefCell<Option<Rc<()>>>>,
 }
 
 #[component]
@@ -46,6 +47,7 @@ pub fn Window(props: &WindowProps, element: &Element) -> Element {
         scale_factor: scale_factor.clone().into_readonly(),
         animation: animation.clone(),
         window: window.clone(),
+        sidebar_owner: Rc::new(RefCell::new(None)),
     });
     let window_registration = app_context.app.register_window(window.erased());
     window

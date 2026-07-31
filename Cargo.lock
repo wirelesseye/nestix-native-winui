@@ -708,6 +708,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "sidebar-example"
+version = "0.1.0"
+dependencies = [
+ "env_logger",
+ "nestix",
+ "nestix-native",
+ "nestix-native-winui",
+ "nestix-native-winui-build",
+]
+
+[[package]]
 name = "slab"
 version = "0.4.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
