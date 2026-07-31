@@ -10,7 +10,7 @@ use std::{
 
 use nestix::Shared;
 use nestix_native_core::{
-    AnimationRuntime, FontStyle, Rect, ResolvedFontProps, TitleBarMode, TreeContext,
+    AnimationRuntime, FontStyle, Rect, ResolvedFontProps, TitlebarMode, TreeContext,
 };
 use windows::Storage::Streams::{
     DataWriter, IRandomAccessStream as NativeRandomAccessStream, InMemoryRandomAccessStream,
@@ -101,7 +101,7 @@ enum XamlKind {
 #[derive(Clone)]
 struct WindowState {
     title: String,
-    title_bar_mode: TitleBarMode,
+    titlebar_mode: TitlebarMode,
     visible: bool,
     resizable: bool,
     width: i32,
@@ -123,7 +123,7 @@ impl std::fmt::Debug for WindowState {
         formatter
             .debug_struct("WindowState")
             .field("title", &self.title)
-            .field("title_bar_mode", &self.title_bar_mode)
+            .field("titlebar_mode", &self.titlebar_mode)
             .field("visible", &self.visible)
             .field("resizable", &self.resizable)
             .field("width", &self.width)
@@ -514,11 +514,11 @@ typed_element!(TabViewItemElement);
 impl WindowElement {
     pub(crate) fn new(
         title: String,
-        title_bar_mode: TitleBarMode,
+        titlebar_mode: TitlebarMode,
         animation: Rc<AnimationRuntime>,
         tree_context: Rc<TreeContext>,
     ) -> Result<Self> {
-        XamlElement::window(title, title_bar_mode, animation, tree_context).map(Self)
+        XamlElement::window(title, titlebar_mode, animation, tree_context).map(Self)
     }
 
     pub(crate) fn close(&self) -> Result<()> {
@@ -527,8 +527,8 @@ impl WindowElement {
     pub(crate) fn set_title(&self, title: String) -> Result<()> {
         self.0.set_text(title)
     }
-    pub(crate) fn set_title_bar_mode(&self, mode: TitleBarMode) -> Result<()> {
-        self.0.set_title_bar_mode(mode)
+    pub(crate) fn set_titlebar_mode(&self, mode: TitlebarMode) -> Result<()> {
+        self.0.set_titlebar_mode(mode)
     }
     pub(crate) fn set_visible(&self, visible: bool) -> Result<()> {
         self.0.set_window_visible(visible)
@@ -816,13 +816,13 @@ impl TabViewItemElement {
 impl XamlElement {
     fn window(
         title: String,
-        title_bar_mode: TitleBarMode,
+        titlebar_mode: TitlebarMode,
         animation: Rc<AnimationRuntime>,
         tree_context: Rc<TreeContext>,
     ) -> Result<Self> {
         Ok(Self::new(XamlKind::Window(WindowState {
             title,
-            title_bar_mode,
+            titlebar_mode,
             visible: true,
             resizable: true,
             width: 200,
@@ -1494,12 +1494,12 @@ impl XamlElement {
         }
     }
 
-    fn set_title_bar_mode(&self, mode: TitleBarMode) -> Result<()> {
+    fn set_titlebar_mode(&self, mode: TitlebarMode) -> Result<()> {
         match &mut *self.0.kind.borrow_mut() {
             XamlKind::Window(element) => {
-                element.title_bar_mode = mode;
+                element.titlebar_mode = mode;
                 if let Some(window) = &element.realized {
-                    apply_title_bar_mode(window, mode)?;
+                    apply_titlebar_mode(window, mode)?;
                 }
                 Ok(())
             }
@@ -2230,7 +2230,7 @@ impl WindowState {
     fn realize(&mut self) -> Result<()> {
         let window = Window::new()?;
         window.SetTitle(&HSTRING::from(&self.title))?;
-        apply_title_bar_mode(&window, self.title_bar_mode)?;
+        apply_titlebar_mode(&window, self.titlebar_mode)?;
         self.realized = Some(window);
         self.set_window_size()?;
         if let Some(window) = self.realized.clone() {
@@ -2405,13 +2405,13 @@ impl WindowState {
     }
 }
 
-fn apply_title_bar_mode(window: &Window, mode: TitleBarMode) -> Result<()> {
+fn apply_titlebar_mode(window: &Window, mode: TitlebarMode) -> Result<()> {
     let presenter = window
         .AppWindow()?
         .Presenter()?
         .cast::<OverlappedPresenter>()?;
-    presenter.SetBorderAndTitleBar(true, mode != TitleBarMode::Hidden)?;
-    window.SetExtendsContentIntoTitleBar(mode == TitleBarMode::Overlay)
+    presenter.SetBorderAndTitleBar(true, mode != TitlebarMode::Hidden)?;
+    window.SetExtendsContentIntoTitleBar(mode == TitlebarMode::Overlay)
 }
 
 fn apply_window_visibility(window: &Window, visible: bool) -> Result<()> {
@@ -3070,7 +3070,7 @@ fn set_canvas_background(canvas: &Canvas, color: Option<nestix_native_core::Colo
 mod tests {
     use super::{CanvasElement, SelectOptionData, XamlElement, XamlKind};
     use nestix::Shared;
-    use nestix_native_core::{AnimationRuntime, TitleBarMode, TreeContext};
+    use nestix_native_core::{AnimationRuntime, TitlebarMode, TreeContext};
     use std::rc::Rc;
 
     #[test]
@@ -3242,28 +3242,28 @@ mod tests {
     }
 
     #[test]
-    fn title_bar_mode_is_cached_before_realization() {
+    fn titlebar_mode_is_cached_before_realization() {
         let window = XamlElement::window(
             "title".into(),
-            TitleBarMode::System,
+            TitlebarMode::System,
             Rc::new(AnimationRuntime::new()),
             Rc::new(TreeContext::new()),
         )
         .unwrap();
-        window.set_title_bar_mode(TitleBarMode::Overlay).unwrap();
+        window.set_titlebar_mode(TitlebarMode::Overlay).unwrap();
 
         let kind = window.0.kind.borrow();
         let XamlKind::Window(window) = &*kind else {
             panic!("expected window");
         };
-        assert_eq!(window.title_bar_mode, TitleBarMode::Overlay);
+        assert_eq!(window.titlebar_mode, TitlebarMode::Overlay);
     }
 
     #[test]
     fn window_visibility_and_resizability_are_cached_before_realization() {
         let window = XamlElement::window(
             "title".into(),
-            TitleBarMode::System,
+            TitlebarMode::System,
             Rc::new(AnimationRuntime::new()),
             Rc::new(TreeContext::new()),
         )

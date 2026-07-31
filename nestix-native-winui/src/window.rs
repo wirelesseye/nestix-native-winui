@@ -37,7 +37,7 @@ pub fn Window(props: &WindowProps, element: &Element) -> Element {
 
     let window = WindowElement::new(
         props.title.get(),
-        props.desktop.title_bar_mode.get(),
+        props.desktop.titlebar_mode.get(),
         animation.clone(),
         tree_context.clone(),
     )
@@ -62,8 +62,8 @@ pub fn Window(props: &WindowProps, element: &Element) -> Element {
     );
 
     scoped_effect!(
-        [window, props.desktop.title_bar_mode] || {
-            let _ = window.set_title_bar_mode(title_bar_mode.get());
+        [window, props.desktop.titlebar_mode] || {
+            let _ = window.set_titlebar_mode(titlebar_mode.get());
         }
     );
 
