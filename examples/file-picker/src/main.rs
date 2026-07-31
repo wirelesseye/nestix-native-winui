@@ -20,7 +20,7 @@ fn main() {
 #[component]
 fn FilePickerExample() -> Element {
     let picker = FilePickerController::new();
-    let status = create_state("Choose an operation".to_string());
+    let (status, set_status) = create_state("Choose an operation".to_string());
 
     layout! {
         Root {
@@ -45,7 +45,7 @@ fn FilePickerExample() -> Element {
                         .title = "Open file",
                         .on_click = picker_callback(
                             picker.clone(),
-                            status.clone(),
+                            set_status.clone(),
                             FilePickerRequest::open_file().with_filter(FilePickerFilter::new(
                                 "Images",
                                 ["png", "jpg", "jpeg"],
@@ -56,7 +56,7 @@ fn FilePickerExample() -> Element {
                         .title = "Open multiple files",
                         .on_click = picker_callback(
                             picker.clone(),
-                            status.clone(),
+                            set_status.clone(),
                             FilePickerRequest::open_files(),
                         ),
                     )
@@ -64,7 +64,7 @@ fn FilePickerExample() -> Element {
                         .title = "Save file",
                         .on_click = picker_callback(
                             picker.clone(),
-                            status.clone(),
+                            set_status.clone(),
                             FilePickerRequest::save_file()
                                 .with_suggested_name("document.txt")
                                 .with_filter(FilePickerFilter::new("Text", ["txt"])),
@@ -74,7 +74,7 @@ fn FilePickerExample() -> Element {
                         .title = "Select folder",
                         .on_click = picker_callback(
                             picker.clone(),
-                            status.clone(),
+                            set_status.clone(),
                             FilePickerRequest::select_folder(),
                         ),
                     )
@@ -86,11 +86,11 @@ fn FilePickerExample() -> Element {
 
 fn picker_callback(
     picker: FilePickerController,
-    status: nestix::State<String>,
+    set_status: nestix::StateSetter<String>,
     request: FilePickerRequest,
 ) -> nestix::Shared<dyn Fn()> {
     callback!(move || {
-        let status_for_completion = status.clone();
+        let set_status_for_completion = set_status.clone();
         if let Err(error) = picker.open(
             request.clone(),
             callback!(move |result| {
@@ -99,10 +99,10 @@ fn picker_callback(
                     Ok(FilePickerOutcome::Cancelled) => "Cancelled".to_string(),
                     Err(error) => format!("Picker failed: {error}"),
                 };
-                status_for_completion.set(message);
+                set_status_for_completion.set(message);
             }),
         ) {
-            status.set(format!("Could not open picker: {error}"));
+            set_status.set(format!("Could not open picker: {error}"));
         }
     })
 }

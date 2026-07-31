@@ -24,8 +24,8 @@ fn main() {
 
 #[component]
 fn DragDropExample() -> Element {
-    let hovering = create_state(false);
-    let status =
+    let (hovering, set_hovering) = create_state(false);
+    let (status, set_status) =
         create_state("Drag the card, or drop files, an image, or text onto it.".to_string());
     let mut content = DragContent::new()
         .with_text("Hello from Nestix")
@@ -54,19 +54,19 @@ fn DragDropExample() -> Element {
                     DropTarget(
                         .accepted_types = DragDataTypes::ALL,
                         .on_enter = callback!(
-                            [hovering] |_offer: &DragOffer| {
-                                hovering.set(true);
+                            [set_hovering] |_offer: &DragOffer| {
+                                set_hovering.set(true);
                                 Some(DragOperation::Copy)
                             }
                         ),
                         .on_over = callback!(
                             |_offer: &DragOffer| Some(DragOperation::Copy)
                         ),
-                        .on_leave = callback!([hovering] || hovering.set(false)),
+                        .on_leave = callback!([set_hovering] || set_hovering.set(false)),
                         .on_drop = callback!(
-                            [hovering, status] |event: DropEvent| {
-                                hovering.set(false);
-                                read_preferred_drop(event, status.clone());
+                            [set_hovering, set_status] |event: DropEvent| {
+                                set_hovering.set(false);
+                                read_preferred_drop(event, set_status.clone());
                             }
                         ),
                     ) {
@@ -74,13 +74,13 @@ fn DragDropExample() -> Element {
                             .content = content,
                             .allowed_operations = DragOperations::COPY,
                             .on_started = callback!(
-                                [status] || {
-                                    status.set("Dragging all available representations…".to_string());
+                                [set_status] || {
+                                    set_status.set("Dragging all available representations…".to_string());
                                 }
                             ),
                             .on_completed = callback!(
-                                [status] | outcome | {
-                                    status.set(match outcome {
+                                [set_status] | outcome | {
+                                    set_status.set(match outcome {
                                         DragSourceOutcome::Dropped(operation) => {
                                             format!("Drag completed with {operation:?}")
                                         }
@@ -91,8 +91,8 @@ fn DragDropExample() -> Element {
                                 }
                             ),
                             .on_error = callback!(
-                                [status] | error | {
-                                    status.set(format!("Could not start drag: {error}"));
+                                [set_status] | error | {
+                                    set_status.set(format!("Could not start drag: {error}"));
                                 }
                             ),
                         ) {
@@ -122,33 +122,33 @@ fn DragDropExample() -> Element {
     }
 }
 
-fn read_preferred_drop(event: DropEvent, status: nestix::State<String>) {
+fn read_preferred_drop(event: DropEvent, set_status: nestix::StateSetter<String>) {
     let available = event.data.available_types();
     // Shell file drags may also advertise an auxiliary text representation.
     // Prefer CF_HDROP so filesystem entries remain files rather than being
     // interpreted as text containing their paths.
     if available.contains(DragDataTypes::FILES) {
         event.data.read_files(
-            callback!([status] |result: Result<Vec<std::path::PathBuf>, DragReadError>| {
-                status.set(match result {
+            callback!([set_status] |result: Result<Vec<std::path::PathBuf>, DragReadError>| {
+                set_status.set(match result {
                     Ok(files) => format!("Dropped files: {files:?}"),
                     Err(error) => format!("Could not read files: {error}"),
                 });
             }),
         );
     } else if available.contains(DragDataTypes::TEXT) {
-        event
-            .data
-            .read_text(callback!([status] |result: Result<String, DragReadError>| {
-                status.set(match result {
+        event.data.read_text(
+            callback!([set_status] |result: Result<String, DragReadError>| {
+                set_status.set(match result {
                     Ok(text) => format!("Dropped text: {text}"),
                     Err(error) => format!("Could not read text: {error}"),
                 });
-            }));
+            }),
+        );
     } else if available.contains(DragDataTypes::IMAGE) {
         event.data.read_image(
-            callback!([status] |result: Result<DragImage, DragReadError>| {
-                status.set(match result {
+            callback!([set_status] |result: Result<DragImage, DragReadError>| {
+                set_status.set(match result {
                     Ok(image) => format!(
                         "Dropped {} image ({} bytes)",
                         image.media_type,
@@ -159,6 +159,6 @@ fn read_preferred_drop(event: DropEvent, status: nestix::State<String>) {
             }),
         );
     } else {
-        status.set("The drop did not contain a supported representation.".to_string());
+        set_status.set("The drop did not contain a supported representation.".to_string());
     }
 }

@@ -21,8 +21,8 @@ fn main() {
 
 #[component]
 fn ExampleApp() -> Element {
-    let count = create_state(0);
-    let message = create_state("Ready".to_string());
+    let (count, set_count) = create_state(0);
+    let (message, set_message) = create_state("Ready".to_string());
     let styles = style! {
         .surface {
             // bg_color: #F4F6F8;
@@ -70,18 +70,18 @@ fn ExampleApp() -> Element {
                                 Button(
                                     .title = "Increment",
                                     .on_click = callback!(
-                                        [count, message] || {
-                                            count.mutate(|count| *count += 1);
-                                            message.set("Counter updated".to_string());
+                                        [set_count, set_message] || {
+                                            set_count.mutate(|count| *count += 1);
+                                            set_message.set("Counter updated".to_string());
                                         }
                                     ),
                                 )
                                 Button(
                                     .title = "Reset",
                                     .on_click = callback!(
-                                        [count, message] || {
-                                            count.set(0);
-                                            message.set("Ready".to_string());
+                                        [set_count, set_message] || {
+                                            set_count.set(0);
+                                            set_message.set("Ready".to_string());
                                         }
                                     ),
                                 )

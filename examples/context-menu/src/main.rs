@@ -22,10 +22,10 @@ fn main() {
 
 #[component]
 fn ContextMenuExample() -> Element {
-    let status = create_state("No command selected".to_string());
-    let show_details = create_state(true);
-    let show_advanced = create_state(false);
-    let sort_order = create_state("Name".to_string());
+    let (status, set_status) = create_state("No command selected".to_string());
+    let (show_details, set_show_details) = create_state(true);
+    let (show_advanced, set_show_advanced) = create_state(false);
+    let (sort_order, set_sort_order) = create_state("Name".to_string());
     let context_menu = ContextMenuController::new();
 
     let menu = layout! {
@@ -34,16 +34,16 @@ fn ContextMenuExample() -> Element {
                 "Open",
                 .shortcut = Shortcut::primary('O'),
                 .on_activate = callback!(
-                    [status] || {
-                        status.set("Open selected".to_string());
+                    [set_status] || {
+                        set_status.set("Open selected".to_string());
                     }
                 ),
             )
             MenuItem(
                 "Rename",
                 .on_activate = callback!(
-                    [status] || {
-                        status.set("Rename selected".to_string());
+                    [set_status] || {
+                        set_status.set("Rename selected".to_string());
                     }
                 ),
             )
@@ -53,9 +53,9 @@ fn ContextMenuExample() -> Element {
                 "Show details",
                 .checked = show_details.clone(),
                 .on_checked_change = callback!(
-                    [show_details, status] | checked | {
-                        show_details.set(checked);
-                        status.set(format!(
+                    [set_show_details, set_status] | checked | {
+                        set_show_details.set(checked);
+                        set_status.set(format!(
                             "Details {}",
                             if checked { "shown" } else { "hidden" }
                         ));
@@ -66,8 +66,8 @@ fn ContextMenuExample() -> Element {
                 "Show advanced command",
                 .checked = show_advanced.clone(),
                 .on_checked_change = callback!(
-                    [show_advanced] | checked | {
-                        show_advanced.set(checked);
+                    [set_show_advanced] | checked | {
+                        set_show_advanced.set(checked);
                     }
                 ),
             )
@@ -75,8 +75,8 @@ fn ContextMenuExample() -> Element {
                 "Advanced command",
                 .visible = show_advanced.clone(),
                 .on_activate = callback!(
-                    [status] || {
-                        status.set("Advanced command selected".to_string());
+                    [set_status] || {
+                        set_status.set("Advanced command selected".to_string());
                     }
                 ),
             )
@@ -87,9 +87,9 @@ fn ContextMenuExample() -> Element {
                     .group = "sort-order",
                     .selected = computed!([sort_order] || sort_order.get() == "Name"),
                     .on_select = callback!(
-                        [sort_order, status] || {
-                            sort_order.set("Name".to_string());
-                            status.set("Sorting by name".to_string());
+                        [set_sort_order, set_status] || {
+                            set_sort_order.set("Name".to_string());
+                            set_status.set("Sorting by name".to_string());
                         }
                     ),
                 )
@@ -98,9 +98,9 @@ fn ContextMenuExample() -> Element {
                     .group = "sort-order",
                     .selected = computed!([sort_order] || sort_order.get() == "Date"),
                     .on_select = callback!(
-                        [sort_order, status] || {
-                            sort_order.set("Date".to_string());
-                            status.set("Sorting by date".to_string());
+                        [set_sort_order, set_status] || {
+                            set_sort_order.set("Date".to_string());
+                            set_status.set("Sorting by date".to_string());
                         }
                     ),
                 )
@@ -138,11 +138,11 @@ fn ContextMenuExample() -> Element {
                             Button(
                                 .title = "Show context menu",
                                 .on_click = callback!(
-                                    [context_menu, status] || {
+                                    [context_menu, set_status] || {
                                         if let Err(error) =
                                             context_menu.show(ContextMenuPosition::Cursor)
                                         {
-                                            status.set(format!("Could not show menu: {error}"));
+                                            set_status.set(format!("Could not show menu: {error}"));
                                         }
                                     }
                                 ),

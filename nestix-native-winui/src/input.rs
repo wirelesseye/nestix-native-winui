@@ -59,10 +59,10 @@ pub fn Input(props: &InputProps, element: &Element) {
         }
     ));
 
-    let intrinsic_size = create_state((0.0f32, 0.0f32));
+    let (intrinsic_size, set_intrinsic_size) = create_state((0.0f32, 0.0f32));
     text_box
-        .set_measure_callback(callback!([intrinsic_size] |width: f32, height: f32| {
-            intrinsic_size.set((width, height));
+        .set_measure_callback(callback!([set_intrinsic_size] |width: f32, height: f32| {
+            set_intrinsic_size.set((width, height));
         }))
         .expect("failed to register WinUI TextBox measurement");
 

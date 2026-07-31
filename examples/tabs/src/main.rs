@@ -90,8 +90,8 @@ fn ExampleApp() -> Element {
 
 #[component]
 fn Counter() -> Element {
-    let count = create_state(0);
-    let bg_color = create_state(Color::TRANSPARENT);
+    let (count, set_count) = create_state(0);
+    let (bg_color, set_bg_color) = create_state(Color::TRANSPARENT);
     let styles = computed_style!(
         [bg_color]
 
@@ -107,9 +107,9 @@ fn Counter() -> Element {
                 Button(
                     .title = "Increment",
                     .on_click = callback!(
-                        [count] || {
-                            count.mutate(|count| *count += 1);
-                            bg_color.set(random_color());
+                        [set_count] || {
+                            set_count.mutate(|count| *count += 1);
+                            set_bg_color.set(random_color());
                         }
                     ),
                 )
@@ -124,33 +124,33 @@ fn Counter() -> Element {
 
 #[component]
 fn TodoList() -> Element {
-    let items = create_state::<Vec<(String, String)>>(Vec::new());
-    let input_text = create_state("".to_string());
+    let (items, set_items) = create_state::<Vec<(String, String)>>(Vec::new());
+    let (input_text, set_input_text) = create_state("".to_string());
 
-    let on_text_change = callback!([input_text] |text: &str| {
-        input_text.set(text.to_string());
+    let on_text_change = callback!([set_input_text] |text: &str| {
+        set_input_text.set(text.to_string());
     });
 
     let add = callback!(
-        [items, input_text] || {
+        [set_items, input_text, set_input_text] || {
             let text = input_text.get();
             if !text.is_empty() {
-                items.mutate(|items| {
+                set_items.mutate(|items| {
                     items.push((nanoid::nanoid!(), text));
                 });
-                input_text.set("".to_string());
+                set_input_text.set("".to_string());
             }
         }
     );
 
-    let remove = callback!([items] |key: &str| {
-        items.mutate(|items| {
+    let remove = callback!([set_items] |key: &str| {
+        set_items.mutate(|items| {
             items.retain(|(k, _)| k != key);
         });
     });
 
-    let move_up = callback!([items] |key: &str| {
-        items.mutate(|items| {
+    let move_up = callback!([set_items] |key: &str| {
+        set_items.mutate(|items| {
             if let Some(index) = items.iter().position(|(k, _)| k == key) {
                 if index > 0 {
                     items.swap(index, index - 1);
@@ -159,8 +159,8 @@ fn TodoList() -> Element {
         });
     });
 
-    let move_down = callback!([items] |key: &str| {
-        items.mutate(|items| {
+    let move_down = callback!([set_items] |key: &str| {
+        set_items.mutate(|items| {
             if let Some(index) = items.iter().position(|(k, _)| k == key) {
                 if index < items.len() - 1 {
                     items.swap(index, index + 1);
@@ -169,8 +169,8 @@ fn TodoList() -> Element {
         });
     });
 
-    let set_content = callback!([items] |key: &str, content: String| {
-        items.mutate(|items| {
+    let set_content = callback!([set_items] |key: &str, content: String| {
+        set_items.mutate(|items| {
             if let Some(index) = items.iter().position(|(k, _)| k == key) {
                 items[index] = (key.to_string(), content);
             }
@@ -225,11 +225,11 @@ struct TodoListItemProps {
 
 #[component]
 fn TodoListItem(props: &TodoListItemProps) -> Element {
-    let is_edit = create_state(false);
+    let (is_edit, set_is_edit) = create_state(false);
 
     let toggle_edit = callback!(
-        [is_edit] || {
-            is_edit.update(|is_edit| !is_edit);
+        [set_is_edit] || {
+            set_is_edit.update(|is_edit| !is_edit);
         }
     );
 

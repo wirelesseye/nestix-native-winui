@@ -294,11 +294,11 @@ fn load_icon(source: ImageSource) -> Option<HICON> {
 #[component]
 /// Adds an application icon to the Windows notification area.
 pub fn TrayIcon(props: &TrayIconProps, element: &Element) -> Element {
-    let menu = create_state(None::<Rc<MenuData>>);
-    let menu_description = create_state(None::<MenuModel>);
+    let (menu, set_menu) = create_state(None::<Rc<MenuData>>);
+    let (menu_description, set_menu_description) = create_state(None::<MenuModel>);
     scoped_effect!(
-        [menu_description, menu] || {
-            menu.set(
+        [menu_description, set_menu] || {
+            set_menu.set(
                 menu_description
                     .get()
                     .map(|model| render_menu_model(&model, true)),
@@ -361,7 +361,9 @@ pub fn TrayIcon(props: &TrayIconProps, element: &Element) -> Element {
     ));
 
     layout! {
-        ContextProvider<MenuHostContext>(MenuHostContext { menu: menu_description }) {
+        ContextProvider<MenuHostContext>(
+            MenuHostContext { menu: menu_description, set_menu: set_menu_description,  },
+        ) {
             $(props.menu.clone().map(|menu| nestix::Layout::from(menu.clone())))
         }
     }

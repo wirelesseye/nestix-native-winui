@@ -21,19 +21,19 @@ fn main() {
 
 #[component]
 fn TrayIconExample() -> Element {
-    let activation_count = create_state(0);
-    let icon_visible = create_state(true);
-    let menu_on_primary = create_state(false);
-    let mode = create_state("Available".to_string());
-    let show_window = create_state(true);
+    let (activation_count, set_activation_count) = create_state(0);
+    let (icon_visible, set_icon_visible) = create_state(true);
+    let (menu_on_primary, set_menu_on_primary) = create_state(false);
+    let (mode, set_mode) = create_state("Available".to_string());
+    let (show_window, set_show_window) = create_state(true);
 
     let tray_menu = layout! {
         Menu {
             MenuItem(
                 "Increment activation count",
                 .on_activate = callback!(
-                    [activation_count] || {
-                        activation_count.mutate(|count| *count += 1);
+                    [set_activation_count] || {
+                        set_activation_count.mutate(|count| *count += 1);
                     }
                 ),
             )
@@ -41,8 +41,8 @@ fn TrayIconExample() -> Element {
                 "Open menu on primary activation",
                 .checked = menu_on_primary.clone(),
                 .on_checked_change = callback!(
-                    [menu_on_primary] | checked | {
-                        menu_on_primary.set(checked);
+                    [set_menu_on_primary] | checked | {
+                        set_menu_on_primary.set(checked);
                     }
                 ),
             )
@@ -51,13 +51,15 @@ fn TrayIconExample() -> Element {
                     "Available",
                     .group = "tray-mode",
                     .selected = computed!([mode] || mode.get() == "Available"),
-                    .on_select = callback!([mode] || mode.set("Available".to_string())),
+                    .on_select = callback!(
+                        [set_mode] || set_mode.set("Available".to_string())
+                    ),
                 )
                 RadioMenuItem(
                     "Busy",
                     .group = "tray-mode",
                     .selected = computed!([mode] || mode.get() == "Busy"),
-                    .on_select = callback!([mode] || mode.set("Busy".to_string())),
+                    .on_select = callback!([set_mode] || set_mode.set("Busy".to_string())),
                 )
             }
             MenuSeparator()
@@ -79,17 +81,17 @@ fn TrayIconExample() -> Element {
                 .menu = tray_menu,
                 .on_activate = callback!(
                     [
-                        activation_count,
                         menu_on_primary,
-                        show_window,
+                        set_show_window,
+                        set_activation_count,
                     ] |event: nestix_native::TrayIconEvent| {
-                        show_window.set(true);
+                        set_show_window.set(true);
                         if menu_on_primary.get() {
                             if let Err(error) = event.show_menu() {
                                 eprintln!("could not show tray menu: {error}");
                             }
                         } else {
-                            activation_count.mutate(|count| *count += 1);
+                            set_activation_count.mutate(|count| *count += 1);
                         }
                     }
                 ),
@@ -105,7 +107,9 @@ fn TrayIconExample() -> Element {
                     .desktop(
                         .width = 460,
                         .height = 300,
-                        .on_close_requested = callback!([show_window] || show_window.set(false)),
+                        .on_close_requested = callback!(
+                            [set_show_window] || set_show_window.set(false)
+                        ),
                     ),
                 ) {
                     FlexView(
@@ -134,8 +138,8 @@ fn TrayIconExample() -> Element {
                                 }
                             ),
                             .on_click = callback!(
-                                [icon_visible] || {
-                                    icon_visible.mutate(|visible| *visible = !*visible);
+                                [set_icon_visible] || {
+                                    set_icon_visible.mutate(|visible| *visible = !*visible);
                                 }
                             ),
                         )

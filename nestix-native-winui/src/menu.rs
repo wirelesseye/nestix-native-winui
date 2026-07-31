@@ -460,12 +460,12 @@ pub(crate) fn render_menu_model(model: &MenuModel, root: bool) -> Rc<MenuData> {
 #[component]
 pub fn MenuBar(props: &MenuBarProps, element: &Element) -> Element {
     require_visual_mount!(element, MenuBar, output);
-    let menu = create_state(None::<Rc<MenuData>>);
-    let description = create_state(None::<MenuModel>);
+    let (menu, set_menu) = create_state(None::<Rc<MenuData>>);
+    let (description, set_description) = create_state(None::<MenuModel>);
 
     scoped_effect!(
-        [description, menu] || {
-            menu.set(
+        [description, set_menu] || {
+            set_menu.set(
                 description
                     .get()
                     .map(|model| render_menu_model(&model, true)),
@@ -494,10 +494,10 @@ pub fn MenuBar(props: &MenuBarProps, element: &Element) -> Element {
             }
         ));
 
-        let intrinsic_size = create_state((0.0f32, 0.0f32));
+        let (intrinsic_size, set_intrinsic_size) = create_state((0.0f32, 0.0f32));
         control
-            .set_measure_callback(callback!([intrinsic_size] |width: f32, height: f32| {
-                intrinsic_size.set((width, height));
+            .set_measure_callback(callback!([set_intrinsic_size] |width: f32, height: f32| {
+                set_intrinsic_size.set((width, height));
             }))
             .expect("failed to register WinUI MenuBar measurement");
 
@@ -531,7 +531,9 @@ pub fn MenuBar(props: &MenuBarProps, element: &Element) -> Element {
     }
 
     layout! {
-        ContextProvider<MenuHostContext>(MenuHostContext { menu: description }) {
+        ContextProvider<MenuHostContext>(
+            MenuHostContext { menu: description, set_menu: set_description,  },
+        ) {
             $(props.menu.clone().map(|menu| nestix::Layout::from(menu.clone())))
         }
     }
@@ -722,15 +724,15 @@ pub(crate) fn show_tray_menu(menu: &MenuData, target: HWND, point: POINT) -> boo
 #[component]
 pub fn ContextMenu(props: &ContextMenuProps, element: &Element) -> Element {
     let window = element.context::<WindowContext>().unwrap();
-    let menu = create_state(None::<Rc<MenuData>>);
-    let description = create_state(None::<MenuModel>);
-    let target = create_state(None::<XamlElement>);
+    let (menu, set_menu) = create_state(None::<Rc<MenuData>>);
+    let (description, set_description) = create_state(None::<MenuModel>);
+    let (target, set_target) = create_state(None::<XamlElement>);
     let registration = Rc::new(RefCell::new(None::<ContextMenuRegistration>));
     let attached = Rc::new(RefCell::new(None::<(XamlElement, Rc<MenuData>)>));
 
     scoped_effect!(
-        [description, menu] || {
-            menu.set(
+        [description, set_menu] || {
+            set_menu.set(
                 description
                     .get()
                     .map(|model| render_menu_model(&model, true)),
@@ -739,10 +741,10 @@ pub fn ContextMenu(props: &ContextMenuProps, element: &Element) -> Element {
     );
 
     scoped_effect!(
-        [target, props.children] || {
+        [set_target, props.children] || {
             children.get().on_last_handle_change(closure!(
-                [target] | handle | {
-                    target
+                [set_target] | handle | {
+                    set_target
                         .set(handle.and_then(|value| value.downcast_ref::<XamlElement>().cloned()));
                 }
             ));
@@ -804,8 +806,10 @@ pub fn ContextMenu(props: &ContextMenuProps, element: &Element) -> Element {
     ));
 
     layout! {
-        ContextProvider<MenuHostContext>(MenuHostContext { menu: description }) [props.children,
-                                                                                  props.menu] {
+        ContextProvider<MenuHostContext>(
+            MenuHostContext { menu: description, set_menu: set_description,  },
+        ) [props.children,
+                                                                                                                                      props.menu] {
             yield $(children.get())
             yield $(menu.get())
         }

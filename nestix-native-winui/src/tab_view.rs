@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use nestix::{
-    Element, Layout, State, callback, closure, component, components::ContextProvider,
+    Element, Layout, State, StateSetter, callback, closure, component, components::ContextProvider,
     create_state, layout, scoped_effect,
 };
 use nestix_native_core::{
@@ -21,7 +21,9 @@ use crate::{
 #[derive(Clone)]
 struct TabViewContext {
     current_selected: State<Option<String>>,
+    set_current_selected: StateSetter<Option<String>>,
     content_size: State<(f32, f32)>,
+    set_content_size: StateSetter<(f32, f32)>,
 }
 
 #[component]
@@ -55,19 +57,23 @@ pub fn TabView(props: &TabViewProps, element: &Element) -> Element {
     element.provide_handle(tab_view.erased());
     let node_id = tree_context.create_node(true);
 
+    let (current_selected, set_current_selected) = create_state(None);
+    let (content_size, set_content_size) = create_state((0.0, 0.0));
     let tab_context = TabViewContext {
-        current_selected: create_state(None),
-        content_size: create_state((0.0, 0.0)),
+        current_selected,
+        set_current_selected,
+        content_size,
+        set_content_size,
     };
     tab_view
-        .set_selected(callback!([tab_context.current_selected] |id: String| {
-            current_selected.set(Some(id));
+        .set_selected(callback!([tab_context.set_current_selected] |id: String| {
+            set_current_selected.set(Some(id));
         }))
         .expect("failed to register SelectorBar selection handler");
     tab_view
         .set_content_resized(
-            callback!([tab_context.content_size] |width: f32, height: f32| {
-                content_size.set((width, height));
+            callback!([tab_context.set_content_size] |width: f32, height: f32| {
+                set_content_size.set((width, height));
             }),
         )
         .expect("failed to register tab content resize handler");

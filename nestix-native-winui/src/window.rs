@@ -30,7 +30,7 @@ pub fn Window(props: &WindowProps, element: &Element) -> Element {
 
     let app_context = element.context::<AppContext>().unwrap();
     let style_context = element.context::<StyleContext>();
-    let scale_factor = create_state(1.0);
+    let (scale_factor, set_scale_factor) = create_state(1.0);
     let tree_context = Rc::new(TreeContext::new());
     let animation = Rc::new(AnimationRuntime::new());
     let content = Rc::new(RefCell::new(None::<(XamlElement, Option<taffy::NodeId>)>));
@@ -49,8 +49,8 @@ pub fn Window(props: &WindowProps, element: &Element) -> Element {
     });
     let window_registration = app_context.app.register_window(window.erased());
     window
-        .set_scale_factor_changed(Some(callback!([scale_factor] |value: f64| {
-            scale_factor.set(value);
+        .set_scale_factor_changed(Some(callback!([set_scale_factor] |value: f64| {
+            set_scale_factor.set(value);
         })))
         .expect("failed to watch WinUI window scale factor");
     element.provide_handle(window.erased());

@@ -23,10 +23,10 @@ fn main() {
 
 #[component]
 fn AnimationApp() -> Element {
-    let expanded = create_state(false);
-    let large_window = create_state(false);
-    let window_width = create_state(680.0);
-    let window_height = create_state(460.0);
+    let (expanded, set_expanded) = create_state(false);
+    let (large_window, set_large_window) = create_state(false);
+    let (window_width, set_window_width) = create_state(680.0);
+    let (window_height, set_window_height) = create_state(460.0);
     let card_class = computed!(
         [expanded] || {
             if expanded.get() {
@@ -88,10 +88,10 @@ fn AnimationApp() -> Element {
                     .desktop(
                         .width = window_width.clone(),
                         .height = window_height.clone(),
+                        .resizable = false,
                         .on_close_requested = callback!(|| {
                             unmount_root().expect("root should be mounted");
                         }),
-                        .resizable = false,
                     ),
                 ) {
                     FlexView(.class = "root", .view(.flex_grow = 1.0)) {
@@ -113,23 +113,36 @@ fn AnimationApp() -> Element {
                             Button(
                                 .title = "Toggle card",
                                 .on_click = callback!(
-                                    [expanded] || {
-                                        expanded.set(!expanded.get());
+                                    [expanded, set_expanded] || {
+                                        set_expanded.set(!expanded.get());
                                     }
                                 ),
                             )
                             Button(
                                 .title = "Animate window",
                                 .on_click = callback!(
-                                    [large_window, window_width, window_height] || {
+                                    [
+                                        large_window,
+                                        set_large_window,
+                                        set_window_width,
+                                        set_window_height
+                                    ] || {
                                         let next = !large_window.get();
-                                        large_window.set(next);
+                                        set_large_window.set(next);
                                         animate(
                                             AnimationSpec::new(Duration::from_millis(420))
                                                 .easing(Easing::EaseInOut),
                                             || {
-                                                window_width.set(if next { 900.0 } else { 680.0 });
-                                                window_height.set(if next { 620.0 } else { 460.0 });
+                                                set_window_width.set(if next {
+                                                    900.0
+                                                } else {
+                                                    680.0
+                                                });
+                                                set_window_height.set(if next {
+                                                    620.0
+                                                } else {
+                                                    460.0
+                                                });
                                             },
                                         );
                                     }
