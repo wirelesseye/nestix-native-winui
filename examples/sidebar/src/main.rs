@@ -1,6 +1,10 @@
 use env_logger::Env;
-use nestix::{Element, callback, component, layout, mount_root, unmount_root};
-use nestix_native::{FlexView, Input, Root, Sidebar, Text, TitlebarMode, Window};
+use nestix::{
+    Element, callback, component, computed, create_state, layout, mount_root, unmount_root,
+};
+use nestix_native::{
+    FlexView, Input, NavigationItem, Root, Sidebar, SidebarNavigation, Text, TitlebarMode, Window,
+};
 use nestix_native_winui::WINUI_BACKEND;
 
 fn main() {
@@ -16,6 +20,8 @@ fn main() {
 
 #[component]
 fn ExampleApp() -> Element {
+    let (page, set_page) = create_state(Some("home".to_string()));
+
     layout! {
         Root {
             Window(
@@ -31,21 +37,33 @@ fn ExampleApp() -> Element {
             ) {
                 FlexView(.view(.flex_grow = 1.0)) {
                     Sidebar(.width = 260.0, .min_width = 260.0, .resizable = true) {
-                        FlexView(
-                            .container(
-                                .padding_horizontal = 15,
-                                .padding_bottom = 15,
-                                .padding_top = 50,
-                            ),
-                            .gap = 15,
-                        ) {
-                            Input()
-                            Text("Sidebar")
-                            Text("Navigation and tools go here.")
+                        FlexView(.view(.flex_grow = 1.0), .gap = 15) {
+                            Input(.view(.margin_horizontal = 15))
+                            SidebarNavigation(
+                                .view(.flex_grow = 1.0),
+                                .value = page.clone(),
+                                .on_value_change = callback!(
+                                    [set_page] |value: &str| {
+                                        set_page.set(Some(value.to_string()));
+                                    }
+                                ),
+                            ) {
+                                NavigationItem("Home", .value = "home")
+                                NavigationItem("Projects", .value = "projects")
+                                NavigationItem("Settings", .value = "settings")
+                            }
                         }
                     }
                     FlexView(.view(.flex_grow = 1.0)) {
-                        Text("Main content")
+                        Text(
+                            computed!(
+                                [page]
+                                    || format!(
+                                        "Selected page: {}",
+                                        page.get().as_deref().unwrap_or("none")
+                                    )
+                            ),
+                        )
                     }
                 }
             }

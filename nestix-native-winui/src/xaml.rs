@@ -24,16 +24,16 @@ use crate::{
             Controls::Primitives::RangeBase,
             Controls::{
                 Button, Canvas, CheckBox, ComboBox, ComboBoxItem, Control, Grid, Image,
-                ItemsControl, MenuBar, NavigationView, NavigationViewPaneDisplayMode, RadioButton,
-                RowDefinition, ScrollView, ScrollingContentOrientation,
-                ScrollingScrollBarVisibility, SelectorBar, SelectorBarItem, Slider, TextBlock,
-                TextBox, ToggleSwitch,
+                ItemsControl, MenuBar, NavigationView, NavigationViewItem,
+                NavigationViewPaneDisplayMode, RadioButton, RowDefinition, ScrollView,
+                ScrollingContentOrientation, ScrollingScrollBarVisibility, SelectorBar,
+                SelectorBarItem, Slider, TextBlock, TextBox, ToggleSwitch,
             },
             FrameworkElement, GridLength, GridUnitType, HorizontalAlignment,
             Media::{FontFamily, Imaging::BitmapImage, Stretch},
             UIElement, VerticalAlignment, Visibility, Window,
         },
-        Windows::Foundation::Size,
+        Windows::Foundation::{PropertyValue, Size},
         Windows::Graphics::SizeInt32,
         Windows::UI::Color as UiColor,
         Windows::UI::Text::{FontStyle as UiFontStyle, FontWeight as UiFontWeight},
@@ -96,6 +96,7 @@ enum XamlKind {
     Image(ImageState),
     MenuBar(MenuBarState),
     Sidebar(SidebarState),
+    NavigationItem(NavigationItemState),
     TabView(TabViewState),
     TabViewItem(TabViewItemState),
 }
@@ -304,6 +305,9 @@ struct SidebarState {
     open: Option<bool>,
     on_open_change: Option<Shared<dyn Fn(bool)>>,
     content_resized: Rc<RefCell<Option<Shared<dyn Fn(f32, f32)>>>>,
+    navigation_items: Vec<XamlElement>,
+    navigation_selected: Rc<RefCell<Option<Shared<dyn Fn(String)>>>>,
+    navigation_updating: Arc<AtomicBool>,
     realized: Option<RealizedSidebar>,
 }
 
@@ -318,6 +322,14 @@ impl std::fmt::Debug for SidebarState {
             .field("realized", &self.realized)
             .finish_non_exhaustive()
     }
+}
+
+#[derive(Debug, Clone)]
+struct NavigationItemState {
+    id: String,
+    label: String,
+    enabled: bool,
+    realized: Option<NavigationViewItem>,
 }
 
 impl std::fmt::Debug for MenuBarState {
@@ -389,7 +401,7 @@ pub(crate) struct RealizedSidebar {
     pane_opened_handler: Rc<RefCell<Option<SidebarOpenHandlerState>>>,
     pane_closed_handler: Rc<RefCell<Option<SidebarOpenHandlerState>>>,
     pane_resize_handler: Rc<RefCell<Option<TabContentResizeHandlerState>>>,
-    navigation_resize_handler: Rc<RefCell<Option<SidebarHostResizeHandlerState>>>,
+    navigation_selection_handler: Rc<RefCell<Option<SidebarSelectionHandlerState>>>,
 }
 
 impl std::fmt::Debug for RealizedSidebar {
@@ -407,7 +419,8 @@ pub(crate) struct SidebarOpenHandlerState {
     _revoker: EventRevoker,
 }
 
-pub(crate) struct SidebarHostResizeHandlerState {
+pub(crate) struct SidebarSelectionHandlerState {
+    _callback: RegisteredStringCallback,
     _revoker: EventRevoker,
 }
 
@@ -583,6 +596,7 @@ typed_element!(TextBoxElement);
 typed_element!(ImageElement);
 typed_element!(MenuBarElement);
 typed_element!(SidebarElement);
+typed_element!(NavigationItemElement);
 typed_element!(TabViewElement);
 typed_element!(TabViewItemElement);
 
@@ -909,6 +923,59 @@ impl SidebarElement {
     pub(crate) fn set_content_resized(&self, handler: Shared<dyn Fn(f32, f32)>) -> Result<()> {
         self.0.set_sidebar_content_resized(handler)
     }
+
+    pub(crate) fn set_content_height(&self, height: f64) -> Result<()> {
+        self.0.set_sidebar_content_height(height)
+    }
+
+    pub(crate) fn insert_navigation_item(
+        &self,
+        item: NavigationItemElement,
+        index: usize,
+    ) -> Result<()> {
+        self.0.insert_sidebar_navigation_item(item.erased(), index)
+    }
+
+    pub(crate) fn remove_navigation_item(&self, item: &NavigationItemElement) -> Result<()> {
+        self.0.remove_sidebar_navigation_item(&item.0)
+    }
+
+    pub(crate) fn set_navigation_selected(
+        &self,
+        item: Option<&NavigationItemElement>,
+    ) -> Result<()> {
+        self.0
+            .set_sidebar_navigation_selected(item.map(|item| &item.0))
+    }
+
+    pub(crate) fn set_navigation_selected_handler(
+        &self,
+        handler: Option<Shared<dyn Fn(String)>>,
+    ) -> Result<()> {
+        self.0.set_sidebar_navigation_selected_handler(handler)
+    }
+}
+
+impl NavigationItemElement {
+    pub(crate) fn new(id: String, label: String, enabled: bool) -> Result<Self> {
+        Ok(Self(XamlElement::navigation_item(id, label, enabled)))
+    }
+
+    pub(crate) fn id(&self) -> String {
+        let kind = self.0.0.kind.borrow();
+        let XamlKind::NavigationItem(item) = &*kind else {
+            unreachable!("typed navigation item has the wrong XAML kind")
+        };
+        item.id.clone()
+    }
+
+    pub(crate) fn set_label(&self, label: String) -> Result<()> {
+        self.0.set_navigation_item_label(label)
+    }
+
+    pub(crate) fn set_enabled(&self, enabled: bool) -> Result<()> {
+        self.0.set_navigation_item_enabled(enabled)
+    }
 }
 
 impl TabViewItemElement {
@@ -1103,8 +1170,20 @@ impl XamlElement {
             open,
             on_open_change,
             content_resized: Rc::new(RefCell::new(None)),
+            navigation_items: Vec::new(),
+            navigation_selected: Rc::new(RefCell::new(None)),
+            navigation_updating: Arc::new(AtomicBool::new(false)),
             realized: None,
         })))
+    }
+
+    fn navigation_item(id: String, label: String, enabled: bool) -> Self {
+        Self::new(XamlKind::NavigationItem(NavigationItemState {
+            id,
+            label,
+            enabled,
+            realized: None,
+        }))
     }
 
     fn tab_view_item(id: String, title: String) -> Result<Self> {
@@ -1256,6 +1335,7 @@ impl XamlElement {
             | XamlKind::TextBlock(_)
             | XamlKind::TextBox(_)
             | XamlKind::MenuBar(_)
+            | XamlKind::NavigationItem(_)
             | XamlKind::Image(_) => {}
         }
         Ok(())
@@ -1320,6 +1400,7 @@ impl XamlElement {
                 XamlKind::Canvas(_)
                 | XamlKind::ScrollView(_)
                 | XamlKind::Sidebar(_)
+                | XamlKind::NavigationItem(_)
                 | XamlKind::TabView(_)
                 | XamlKind::MenuBar(_)
                 | XamlKind::Select(_)
@@ -1870,6 +1951,128 @@ impl XamlElement {
         Ok(())
     }
 
+    fn set_sidebar_content_height(&self, height: f64) -> Result<()> {
+        let kind = self.0.kind.borrow();
+        let XamlKind::Sidebar(element) = &*kind else {
+            return Ok(());
+        };
+        if let Some(realized) = &element.realized {
+            realized.pane.SetHeight(height)?;
+        }
+        Ok(())
+    }
+
+    fn insert_sidebar_navigation_item(&self, item: XamlElement, index: usize) -> Result<()> {
+        let control = {
+            let mut kind = self.0.kind.borrow_mut();
+            let XamlKind::Sidebar(element) = &mut *kind else {
+                return Ok(());
+            };
+            element.navigation_items.retain(|current| current != &item);
+            let index = index.min(element.navigation_items.len());
+            element.navigation_items.insert(index, item.clone());
+            element
+                .realized
+                .as_ref()
+                .map(|realized| (realized.control.clone(), index))
+        };
+        if let Some((control, index)) = control {
+            item.realize()?;
+            let native_item = item.as_ui_element()?.cast::<windows_core::IInspectable>()?;
+            let items = control.MenuItems()?;
+            let mut old_index = 0;
+            if items.IndexOf(&native_item, &mut old_index)? {
+                items.RemoveAt(old_index)?;
+            }
+            items.InsertAt(index.min(items.Size()? as usize) as u32, &native_item)?;
+        }
+        Ok(())
+    }
+
+    fn remove_sidebar_navigation_item(&self, item: &XamlElement) -> Result<()> {
+        let native_item = if item.is_realized() {
+            Some(item.as_ui_element()?.cast::<windows_core::IInspectable>()?)
+        } else {
+            None
+        };
+        let mut kind = self.0.kind.borrow_mut();
+        let XamlKind::Sidebar(element) = &mut *kind else {
+            return Ok(());
+        };
+        element.navigation_items.retain(|current| current != item);
+        if let (Some(realized), Some(native_item)) = (&element.realized, native_item) {
+            let items = realized.control.MenuItems()?;
+            let mut index = 0;
+            if items.IndexOf(&native_item, &mut index)? {
+                items.RemoveAt(index)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn set_sidebar_navigation_selected(&self, item: Option<&XamlElement>) -> Result<()> {
+        let kind = self.0.kind.borrow();
+        let XamlKind::Sidebar(element) = &*kind else {
+            return Ok(());
+        };
+        let Some(realized) = &element.realized else {
+            return Ok(());
+        };
+        let selected = item
+            .map(|item| {
+                item.realize()?;
+                item.as_ui_element()?.cast::<windows_core::IInspectable>()
+            })
+            .transpose()?;
+        element.navigation_updating.store(true, Ordering::SeqCst);
+        let result = if let Some(selected) = &selected {
+            realized.control.SetSelectedItem(selected)
+        } else {
+            realized.control.SetSelectedItem(None)
+        };
+        element.navigation_updating.store(false, Ordering::SeqCst);
+        result
+    }
+
+    fn set_sidebar_navigation_selected_handler(
+        &self,
+        handler: Option<Shared<dyn Fn(String)>>,
+    ) -> Result<()> {
+        let mut kind = self.0.kind.borrow_mut();
+        let XamlKind::Sidebar(element) = &mut *kind else {
+            return Ok(());
+        };
+        element.navigation_selected.replace(handler);
+        if let Some(realized) = element.realized.clone() {
+            element.attach_navigation_selection_handler(&realized)?;
+        }
+        Ok(())
+    }
+
+    fn set_navigation_item_label(&self, label: String) -> Result<()> {
+        let mut kind = self.0.kind.borrow_mut();
+        let XamlKind::NavigationItem(element) = &mut *kind else {
+            return Ok(());
+        };
+        element.label = label;
+        if let Some(realized) = &element.realized {
+            set_navigation_item_label(realized, &element.label)?;
+        }
+        Ok(())
+    }
+
+    fn set_navigation_item_enabled(&self, enabled: bool) -> Result<()> {
+        let mut kind = self.0.kind.borrow_mut();
+        let XamlKind::NavigationItem(element) = &mut *kind else {
+            return Ok(());
+        };
+        element.enabled = enabled;
+        if let Some(realized) = &element.realized {
+            realized.SetIsEnabled(enabled)?;
+        }
+        Ok(())
+    }
+
     fn set_tab_content_resized(&self, handler: Shared<dyn Fn(f32, f32)>) -> Result<()> {
         let mut kind = self.0.kind.borrow_mut();
         let XamlKind::TabView(element) = &mut *kind else {
@@ -2220,6 +2423,7 @@ impl XamlElement {
             XamlKind::Image(element) => element.realize()?,
             XamlKind::MenuBar(element) => element.realize()?,
             XamlKind::Sidebar(element) => element.realize()?,
+            XamlKind::NavigationItem(element) => element.realize()?,
             XamlKind::TabView(element) => element.realize()?,
             XamlKind::TabViewItem(element) => element.realize()?,
         }
@@ -2275,6 +2479,7 @@ impl XamlElement {
             XamlKind::Image(element) => element.realized.is_some(),
             XamlKind::MenuBar(element) => element.realized.is_some(),
             XamlKind::Sidebar(element) => element.realized.is_some(),
+            XamlKind::NavigationItem(element) => element.realized.is_some(),
             XamlKind::TabView(element) => element.realized.is_some(),
             XamlKind::TabViewItem(element) => element.realized.is_some(),
         }
@@ -2375,6 +2580,7 @@ impl XamlElement {
             | XamlKind::TextBlock(_)
             | XamlKind::TextBox(_)
             | XamlKind::MenuBar(_)
+            | XamlKind::NavigationItem(_)
             | XamlKind::Image(_) => {}
         }
         Ok(())
@@ -2397,6 +2603,7 @@ impl XamlElement {
             XamlKind::Image(element) => element.realized.as_ref().unwrap().cast(),
             XamlKind::MenuBar(element) => element.realized.as_ref().unwrap().cast(),
             XamlKind::Sidebar(element) => element.realized.as_ref().unwrap().control.cast(),
+            XamlKind::NavigationItem(element) => element.realized.as_ref().unwrap().cast(),
             XamlKind::TabView(element) => element.realized.as_ref().unwrap().control.cast(),
             XamlKind::TabViewItem(element) => element.realized.as_ref().unwrap().content.cast(),
         }
@@ -3250,11 +3457,16 @@ impl SidebarState {
             pane_opened_handler: Rc::new(RefCell::new(None)),
             pane_closed_handler: Rc::new(RefCell::new(None)),
             pane_resize_handler: Rc::new(RefCell::new(None)),
-            navigation_resize_handler: Rc::new(RefCell::new(None)),
+            navigation_selection_handler: Rc::new(RefCell::new(None)),
         };
-        self.attach_navigation_resize_handler(&realized)?;
+        let menu_items = realized.control.MenuItems()?;
+        for item in &self.navigation_items {
+            item.realize()?;
+            menu_items.Append(&item.as_ui_element()?.cast::<windows_core::IInspectable>()?)?;
+        }
         self.attach_open_handlers(&realized)?;
         self.attach_content_resize_handler(&realized)?;
+        self.attach_navigation_selection_handler(&realized)?;
         self.realized = Some(realized);
         Ok(())
     }
@@ -3314,23 +3526,32 @@ impl SidebarState {
         Ok(())
     }
 
-    fn attach_navigation_resize_handler(&self, realized: &RealizedSidebar) -> Result<()> {
-        realized.navigation_resize_handler.take();
-        let pane = realized.pane.clone();
-        let revoker = realized.control.SizeChanged(move |_, args| {
+    fn attach_navigation_selection_handler(&self, realized: &RealizedSidebar) -> Result<()> {
+        realized.navigation_selection_handler.take();
+        let Some(callback) = self.navigation_selected.borrow().clone() else {
+            return Ok(());
+        };
+        let callback = RegisteredStringCallback::register(callback);
+        let callback_id = callback.id();
+        let updating = self.navigation_updating.clone();
+        let revoker = realized.control.SelectionChanged(move |_, args| {
+            if updating.load(Ordering::SeqCst) {
+                return;
+            }
             if let Some(args) = &*args
-                && let Ok(size) = args.NewSize()
+                && let Ok(selected) = args.SelectedItem()
+                && let Ok(selected) = selected.cast::<NavigationViewItem>()
+                && let Ok(id) = selected.Name()
             {
-                // Canvas deliberately does not include absolutely positioned children in its
-                // desired size. PaneCustomContent therefore gives it a zero-height slot unless
-                // the host supplies a concrete extent. Painting may escape that slot, but hit
-                // testing cannot, which leaves visible controls unable to receive input.
-                let _ = pane.SetHeight(size.Height.into());
+                RegisteredStringCallback::invoke(callback_id, id.to_string_lossy());
             }
         })?;
         realized
-            .navigation_resize_handler
-            .replace(Some(SidebarHostResizeHandlerState { _revoker: revoker }));
+            .navigation_selection_handler
+            .replace(Some(SidebarSelectionHandlerState {
+                _callback: callback,
+                _revoker: revoker,
+            }));
         Ok(())
     }
 
@@ -3356,6 +3577,22 @@ impl SidebarState {
             }));
         Ok(())
     }
+}
+
+impl NavigationItemState {
+    fn realize(&mut self) -> Result<()> {
+        let item = NavigationViewItem::new()?;
+        item.SetName(&HSTRING::from(&self.id))?;
+        set_navigation_item_label(&item, &self.label)?;
+        item.SetIsEnabled(self.enabled)?;
+        self.realized = Some(item);
+        Ok(())
+    }
+}
+
+fn set_navigation_item_label(item: &NavigationViewItem, label: &str) -> Result<()> {
+    let label = PropertyValue::CreateString(&HSTRING::from(label))?;
+    item.SetContent(&label)
 }
 
 fn apply_sidebar_sizing(
@@ -3524,6 +3761,33 @@ mod tests {
     #[should_panic(expected = "Sidebar min_width must be a finite, non-negative number")]
     fn invalid_sidebar_min_width_panics() {
         clamped_sidebar_width(None, Some(f64::NAN));
+    }
+
+    #[test]
+    fn sidebar_navigation_items_preserve_order_before_realization() {
+        let sidebar = XamlElement::sidebar(None, None, true, None, None).unwrap();
+        let first = XamlElement::navigation_item("first".into(), "First".into(), true);
+        let second = XamlElement::navigation_item("second".into(), "Second".into(), true);
+
+        sidebar
+            .insert_sidebar_navigation_item(first.clone(), 0)
+            .unwrap();
+        sidebar
+            .insert_sidebar_navigation_item(second.clone(), 0)
+            .unwrap();
+        let kind = sidebar.0.kind.borrow();
+        let XamlKind::Sidebar(state) = &*kind else {
+            panic!("expected sidebar")
+        };
+        assert_eq!(state.navigation_items, [second.clone(), first.clone()]);
+        drop(kind);
+
+        sidebar.remove_sidebar_navigation_item(&second).unwrap();
+        let kind = sidebar.0.kind.borrow();
+        let XamlKind::Sidebar(state) = &*kind else {
+            panic!("expected sidebar")
+        };
+        assert_eq!(state.navigation_items, [first]);
     }
 
     #[test]

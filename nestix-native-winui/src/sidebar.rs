@@ -5,13 +5,22 @@ use nestix::{
     layout, scoped_effect,
 };
 use nestix_native_core::{SidebarProps, TreeContext};
-use taffy::{Dimension, Size, Style, prelude::FromLength};
+use taffy::{
+    Dimension, Size, Style,
+    prelude::{FromLength, TaffyAuto},
+};
 
 use crate::{
     WindowContext,
     contexts::ParentContext,
     xaml::{SidebarElement, XamlElement},
 };
+
+#[derive(Clone)]
+pub(crate) struct SidebarContext {
+    pub sidebar: SidebarElement,
+    pub navigation_owner: Rc<std::cell::RefCell<Option<Rc<()>>>>,
+}
 
 #[component]
 pub fn Sidebar(props: &SidebarProps, element: &Element) -> Element {
@@ -41,6 +50,10 @@ pub fn Sidebar(props: &SidebarProps, element: &Element) -> Element {
         .expect("failed to attach WinUI NavigationView sidebar");
 
     let tree_context = Rc::new(TreeContext::new());
+    let sidebar_context = SidebarContext {
+        sidebar: sidebar.clone(),
+        navigation_owner: Rc::new(std::cell::RefCell::new(None)),
+    };
     let (content_size, set_content_size) = create_state((0.0, 0.0));
     sidebar
         .set_content_resized(callback!([set_content_size] |width: f32, height: f32| {
@@ -79,12 +92,12 @@ pub fn Sidebar(props: &SidebarProps, element: &Element) -> Element {
     );
     scoped_effect!(
         [tree_context, content_size] || {
-            let (width, height) = content_size.get();
+            let (width, _) = content_size.get();
             if let Some(root_node) = tree_context.root_node() {
                 tree_context.update_style(root_node, |prev| Style {
                     size: Size {
                         width: Dimension::from_length(width),
-                        height: Dimension::from_length(height),
+                        height: Dimension::AUTO,
                     },
                     ..prev
                 });
@@ -92,36 +105,48 @@ pub fn Sidebar(props: &SidebarProps, element: &Element) -> Element {
             }
         }
     );
+    scoped_effect!(
+        [sidebar, tree_context] || {
+            tree_context.layout_revision().get();
+            if let Some(root_node) = tree_context.root_node()
+                && let Some(layout) = tree_context.layout(root_node)
+            {
+                let _ = sidebar.set_content_height(layout.size.height.into());
+            }
+        }
+    );
 
     layout! {
-        ContextProvider<TreeContext>(tree_context.clone()) {
-            ContextProvider<ParentContext>(
-                ParentContext {
-                    add_child: Some(callback!([sidebar, tree_context, content_size] |child: XamlElement,
-                    child_node: Option<taffy::NodeId> | {
-                        let _ = sidebar.append_child(child);
-                        tree_context.set_root_node(child_node);
-                        if let Some(child_node) = child_node {
-                            let (width, height) = content_size.get();
-                            tree_context.update_style(child_node, |prev| Style {
-                                size: Size {
-                                    width: Dimension::from_length(width),
-                                    height: Dimension::from_length(height),
-                                },
-                                ..prev
-                            });
-                            tree_context.refresh();
-                        }
-                    })),
-                    insert_child: None,
-                    remove_child: Some(callback!([sidebar] |child: &XamlElement,
-                    _: Option<taffy::NodeId> | {
-                        let _ = sidebar.remove_child(child);
-                    })),
-                    parent_node: None
-                },
-            ) {
-                $(props.children.clone().map(|child| Layout::from(child.clone())))
+        ContextProvider<SidebarContext>(sidebar_context) {
+            ContextProvider<TreeContext>(tree_context.clone()) {
+                ContextProvider<ParentContext>(
+                    ParentContext {
+                        add_child: Some(callback!([sidebar, tree_context, content_size] |child: XamlElement,
+                        child_node: Option<taffy::NodeId> | {
+                            let _ = sidebar.append_child(child);
+                            tree_context.set_root_node(child_node);
+                            if let Some(child_node) = child_node {
+                                let (width, _) = content_size.get();
+                                tree_context.update_style(child_node, |prev| Style {
+                                    size: Size {
+                                        width: Dimension::from_length(width),
+                                        height: Dimension::AUTO,
+                                    },
+                                    ..prev
+                                });
+                                tree_context.refresh();
+                            }
+                        })),
+                        insert_child: None,
+                        remove_child: Some(callback!([sidebar] |child: &XamlElement,
+                        _: Option<taffy::NodeId> | {
+                            let _ = sidebar.remove_child(child);
+                        })),
+                        parent_node: None
+                    },
+                ) {
+                    $(props.children.clone().map(|child| Layout::from(child.clone())))
+                }
             }
         }
     }
