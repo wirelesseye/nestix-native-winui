@@ -15,7 +15,8 @@ use windows_core::{Error, HRESULT, HSTRING, Interface, PCWSTR, Result, s, w};
 
 use crate::{
     bindings::Microsoft::UI::Xaml::{
-        Application, ApplicationInitializationCallback, Controls::XamlControlsResources, Thickness,
+        Application, ApplicationInitializationCallback, Controls::XamlControlsResources,
+        Media::Brush, Thickness,
     },
     xaml::XamlElement,
 };
@@ -156,6 +157,12 @@ pub(crate) fn theme_f64(key: &str) -> Result<f64> {
     let resources = Application::Current()?.Resources()?;
     let key = PropertyValue::CreateString(&windows_core::HSTRING::from(key))?;
     resources.Lookup(&key)?.cast::<IReference<f64>>()?.Value()
+}
+
+pub(crate) fn theme_brush(key: &str) -> Result<Brush> {
+    let resources = Application::Current()?.Resources()?;
+    let key = PropertyValue::CreateString(&windows_core::HSTRING::from(key))?;
+    resources.Lookup(&key)?.cast()
 }
 
 fn push_pending_window(window: XamlElement) {

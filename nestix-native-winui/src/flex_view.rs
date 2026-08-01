@@ -95,6 +95,12 @@ pub fn FlexView(props: &FlexViewProps, element: &Element) -> Element {
     );
 
     scoped_effect!(
+        [canvas, props.material, props.material_source] || {
+            let _ = canvas.set_material(material.get(), material_source.get());
+        }
+    );
+
+    scoped_effect!(
         [
             tree_context,
             style_props,
@@ -157,6 +163,7 @@ pub fn FlexView(props: &FlexViewProps, element: &Element) -> Element {
             window_context.scale_factor,
             tree_context,
             style_props,
+            props.view.position,
             props.view.left,
             props.view.top
         ] || {
@@ -171,6 +178,8 @@ pub fn FlexView(props: &FlexViewProps, element: &Element) -> Element {
                     style.top
                 });
             tree_context.update_style(node_id, |prev| Style {
+                position: nestix_native_core::style_position(style_props.as_ref(), position.get())
+                    .to_taffy(),
                 inset: inset_to_taffy(left, top, scale_factor),
                 ..prev
             });
@@ -515,5 +524,60 @@ mod tests {
         canvas.set_layout(0.0, 0.0, 1.0, 1.0).unwrap();
         tree.refresh();
         assert_eq!(canvas.cached_layout(), Some((0.0, 0.0, 120.0, 80.0)));
+    }
+
+    #[test]
+    fn absolute_children_use_insets_from_the_containing_block() {
+        let tree = TreeContext::new();
+        let parent = tree.create_node(false);
+        let first = tree.create_node(false);
+        let second = tree.create_node(false);
+        tree.update_style(parent, |prev| Style {
+            size: Size {
+                width: Dimension::from_length(500.0),
+                height: Dimension::from_length(300.0),
+            },
+            ..prev
+        });
+        tree.update_style(first, |prev| Style {
+            position: taffy::Position::Absolute,
+            inset: Rect {
+                left: LengthPercentageAuto::length(30.0),
+                top: LengthPercentageAuto::length(20.0),
+                ..Rect::auto()
+            },
+            size: Size {
+                width: Dimension::from_length(310.0),
+                height: Dimension::from_length(135.0),
+            },
+            ..prev
+        });
+        tree.update_style(second, |prev| Style {
+            position: taffy::Position::Absolute,
+            inset: Rect {
+                left: LengthPercentageAuto::length(130.0),
+                top: LengthPercentageAuto::length(55.0),
+                ..Rect::auto()
+            },
+            size: Size {
+                width: Dimension::from_length(300.0),
+                height: Dimension::from_length(155.0),
+            },
+            ..prev
+        });
+        tree.set_children(parent, &[first, second]);
+        tree.set_root_node(Some(parent));
+        tree.refresh();
+
+        let first_layout = tree.layout(first).unwrap();
+        let second_layout = tree.layout(second).unwrap();
+        assert_eq!(
+            (first_layout.location.x, first_layout.location.y),
+            (30.0, 20.0)
+        );
+        assert_eq!(
+            (second_layout.location.x, second_layout.location.y),
+            (130.0, 55.0)
+        );
     }
 }

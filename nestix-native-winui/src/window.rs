@@ -81,6 +81,12 @@ pub fn Window(props: &WindowProps, element: &Element) -> Element {
         }
     );
 
+    scoped_effect!(
+        [window, props.desktop.material] || {
+            let _ = window.set_material(material.get());
+        }
+    );
+
     window
         .set_resized(Some(callback!([
             tree_context,

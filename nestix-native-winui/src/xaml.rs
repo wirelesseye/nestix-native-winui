@@ -10,7 +10,8 @@ use std::{
 
 use nestix::Shared;
 use nestix_native_core::{
-    AnimationRuntime, FontStyle, Rect, ResolvedFontProps, TitlebarMode, TreeContext,
+    AnimationRuntime, FontStyle, Material, MaterialSource, Rect, ResolvedFontProps, TitlebarMode,
+    TreeContext,
 };
 use windows::Storage::Streams::{
     DataWriter, IRandomAccessStream as NativeRandomAccessStream, InMemoryRandomAccessStream,
@@ -107,6 +108,7 @@ struct WindowState {
     titlebar_mode: TitlebarMode,
     visible: bool,
     resizable: bool,
+    material: Option<Material>,
     width: i32,
     height: i32,
     realized: Option<Window>,
@@ -160,6 +162,8 @@ impl Drop for AnimationTimerState {
 #[derive(Debug, Clone)]
 struct CanvasState {
     background_color: Option<nestix_native_core::Color>,
+    material: Option<Material>,
+    material_source: MaterialSource,
     realized: Option<Canvas>,
 }
 
@@ -625,6 +629,9 @@ impl WindowElement {
     pub(crate) fn set_resizable(&self, resizable: bool) -> Result<()> {
         self.0.set_window_resizable(resizable)
     }
+    pub(crate) fn set_material(&self, material: Option<Material>) -> Result<()> {
+        self.0.set_window_material(material)
+    }
     pub(crate) fn set_size(&self, width: i32, height: i32) -> Result<()> {
         self.0.set_window_size(width, height)
     }
@@ -688,6 +695,13 @@ impl CanvasElement {
         color: Option<nestix_native_core::Color>,
     ) -> Result<()> {
         self.0.set_background_color(color)
+    }
+    pub(crate) fn set_material(
+        &self,
+        material: Option<Material>,
+        source: MaterialSource,
+    ) -> Result<()> {
+        self.0.set_canvas_material(material, source)
     }
 }
 
@@ -1005,6 +1019,7 @@ impl XamlElement {
             titlebar_mode,
             visible: true,
             resizable: true,
+            material: None,
             width: 200,
             height: 200,
             realized: None,
@@ -1024,6 +1039,8 @@ impl XamlElement {
     fn canvas() -> Result<Self> {
         Ok(Self::new(XamlKind::Canvas(CanvasState {
             background_color: None,
+            material: None,
+            material_source: MaterialSource::Automatic,
             realized: None,
         })))
     }
@@ -1723,6 +1740,19 @@ impl XamlElement {
         }
     }
 
+    fn set_window_material(&self, material: Option<Material>) -> Result<()> {
+        match &mut *self.0.kind.borrow_mut() {
+            XamlKind::Window(element) => {
+                element.material = material;
+                if let Some(window) = &element.realized {
+                    apply_window_material(window, material)?;
+                }
+                Ok(())
+            }
+            other => panic!("XamlElement is not a window: {:?}", other),
+        }
+    }
+
     fn set_window_sidebar(&self, sidebar: Option<XamlElement>) -> Result<()> {
         let (window, previous) = {
             let mut kind = self.0.kind.borrow_mut();
@@ -2120,7 +2150,24 @@ impl XamlElement {
 
         element.background_color = color;
         if let Some(canvas) = &element.realized {
-            set_canvas_background(canvas, color)?;
+            apply_canvas_background(canvas, element)?;
+        }
+        Ok(())
+    }
+
+    fn set_canvas_material(
+        &self,
+        material: Option<Material>,
+        source: MaterialSource,
+    ) -> Result<()> {
+        let mut kind = self.0.kind.borrow_mut();
+        let XamlKind::Canvas(element) = &mut *kind else {
+            return Ok(());
+        };
+        element.material = material;
+        element.material_source = source;
+        if let Some(canvas) = &element.realized {
+            apply_canvas_background(canvas, element)?;
         }
         Ok(())
     }
@@ -2171,7 +2218,7 @@ impl XamlElement {
         };
 
         if let Some(canvas) = &element.realized {
-            set_canvas_background(canvas, element.background_color)?;
+            apply_canvas_background(canvas, element)?;
         }
         Ok(())
     }
@@ -2715,6 +2762,7 @@ impl WindowState {
         let window = Window::new()?;
         window.SetTitle(&HSTRING::from(&self.title))?;
         apply_titlebar_mode(&window, self.titlebar_mode)?;
+        apply_window_material(&window, self.material)?;
         self.realized = Some(window);
         self.set_window_size()?;
         if let Some(window) = self.realized.clone() {
@@ -3719,8 +3767,21 @@ impl TabViewItemState {
     }
 }
 
-fn set_canvas_background(canvas: &Canvas, color: Option<nestix_native_core::Color>) -> Result<()> {
-    let Some(color) = color else {
+fn apply_window_material(window: &Window, material: Option<Material>) -> Result<()> {
+    let backdrop = crate::material::window_system_backdrop(material)?;
+    window.SetSystemBackdrop(backdrop.as_ref())
+}
+
+fn apply_canvas_background(canvas: &Canvas, state: &CanvasState) -> Result<()> {
+    if let Some(resource) = state
+        .material
+        .and_then(crate::material::in_app_brush_resource)
+        && let Ok(brush) = crate::xaml_app::theme_brush(resource)
+    {
+        return canvas.SetBackground(&brush);
+    }
+
+    let Some(color) = state.background_color else {
         return canvas.SetBackground(None);
     };
 

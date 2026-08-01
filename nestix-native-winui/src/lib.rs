@@ -30,6 +30,7 @@ pub mod file_picker;
 pub mod flex_view;
 pub mod image_view;
 pub mod input;
+mod material;
 pub mod menu;
 mod native_control;
 pub mod navigation;
